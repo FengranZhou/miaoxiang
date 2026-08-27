@@ -1,0 +1,18 @@
+#!/bin/bash
+# 命令行 shim：通过 `open -n -a` 启动 Confirm.app（macOS 会认成 GUI app）
+# 必须走 open，否则直接 exec bundle 内 binary 会被 macOS 当成命令行进程，无法跨 Space 显示窗口。
+#
+# 【自愈自动建构（防呆）】别人拿到 skill 后往往不知道要先 build Confirm.app。
+# 每次启动弹窗前，先检查 Confirm.app 是否缺失 / 比源码 Confirm.swift 旧——
+# 是则自动跑 build-confirm.sh 重新编译，别人零感知、弹窗永远是最新的。
+# 路径全部相对 shim 自身位置动态推导，skill 换目录也不失效。
+DIR="$(cd "$(dirname "$0")" && pwd)"
+APP="$DIR/Confirm.app"
+SRC="$DIR/ConfirmSrc/Confirm.swift"
+BUILDER="$DIR/build-confirm.sh"
+BIN_IN_APP="$APP/Contents/MacOS/Confirm"
+if [ ! -x "$BIN_IN_APP" ] || { [ -f "$SRC" ] && [ "$SRC" -nt "$BIN_IN_APP" ]; }; then
+  echo "[confirm] Confirm.app 缺失或源码已更新，自动重新编译…" >&2
+  bash "$BUILDER" >&2 || { echo "[confirm] build 失败，请手动运行: bash $BUILDER" >&2; exit 1; }
+fi
+exec /usr/bin/open -n -a "$APP" --args "$@"

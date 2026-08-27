@@ -1,0 +1,17 @@
+# Python virtual env (rembg models, ~700M)
+.venv/
+
+# Node deps
+node_modules/
+
+# macOS metadata
+.DS_Store
+
+# Local debug artifacts
+/tmp/doubao-review/
+
+# macOS app bundle (built by bin/build.sh; user rebuilds locally)
+bin/Picker.app/
+
+# macOS app bundle (built by bin/build-confirm.sh; user rebuilds locally)
+bin/Confirm.app/

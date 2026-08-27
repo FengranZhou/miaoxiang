@@ -1,0 +1,10 @@
+# 抠图 .venv 依赖锁定（Python 3.9.6，本机 2026-07-12 实测可用组合）
+# 重建：python3 -m venv .venv && .venv/bin/pip install -r requirements-cutout.txt
+# ⚠️ 本机 pip 走代理会被切断 SSL——装不动时看 CUTOUT.md 的离线 wheel 方案
+rembg==2.0.61
+onnxruntime==1.19.2
+numpy==2.0.2
+pillow==10.4.0
+opencv-python-headless==4.13.0.92
+PyMatting==1.1.15
+scipy==1.13.1

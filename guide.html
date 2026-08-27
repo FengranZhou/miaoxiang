@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>妙想 · 最后一步：加载扩展</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0F1B26; color: rgba(255,255,255,.92);
+    font: 400 15px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; justify-content: center; padding: 48px 20px 96px;
+  }
+  main { max-width: 640px; width: 100%; }
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+  .sub { color: rgba(255,255,255,.62); margin-bottom: 40px; }
+  .sub code { color: #65FFB6; }
+  .step {
+    display: flex; gap: 18px; margin-bottom: 36px;
+  }
+  .n {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px;
+    background: #65FFB6; color: #12151A; text-align: center;
+    font: 600 15px/30px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  }
+  .body { flex: 1; padding-top: 3px; }
+  .body h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .body p { color: rgba(255,255,255,.62); font-size: 14px; margin-bottom: 12px; }
+  .body p strong { color: rgba(255,255,255,.92); }
+  kbd {
+    font: 500 12px/1 ui-monospace, Menlo, monospace;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+    border-bottom-width: 2px; border-radius: 5px; padding: 3px 7px;
+    color: rgba(255,255,255,.92);
+  }
+  /* 示意图：模拟 chrome://extensions 界面的关键控件 */
+  .mock {
+    background: rgba(0,0,0,.24); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px; font-size: 13px;
+  }
+  .mock .addr {
+    flex: 1; background: rgba(255,255,255,.06); border-radius: 999px;
+    padding: 6px 14px; color: rgba(255,255,255,.62);
+    font: 400 12.5px/1.5 ui-monospace, Menlo, monospace;
+  }
+  .toggle {
+    width: 38px; height: 22px; border-radius: 999px; background: #65FFB6;
+    position: relative; flex-shrink: 0;
+  }
+  .toggle::after {
+    content: ''; position: absolute; right: 2px; top: 2px;
+    width: 18px; height: 18px; border-radius: 999px; background: #0F1B26;
+  }
+  .mock .lbl { color: rgba(255,255,255,.92); white-space: nowrap; }
+  .btnmock {
+    display: inline-block; background: rgba(101,255,182,.16); color: #65FFB6;
+    border: 1px solid rgba(101,255,182,.4); border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; font-weight: 500;
+  }
+  .path {
+    background: rgba(0,0,0,.24); border: 1px dashed rgba(255,255,255,.22);
+    border-radius: 8px; padding: 10px 14px; margin-top: 10px;
+    font: 400 12.5px/1.6 ui-monospace, Menlo, monospace; color: #65FFB6;
+  }
+  .done {
+    margin-top: 8px; padding: 18px 22px; border-radius: 10px;
+    background: rgba(101,255,182,.1); border: 1px solid rgba(101,255,182,.3);
+  }
+  .done strong { color: #65FFB6; }
+</style>
+</head>
+<body>
+<main>
+  <h1>最后一步：把扩展装进 Chrome</h1>
+  <p class="sub">安装脚本已把一切就位，扩展目录路径也复制到了剪贴板。下面三步大约 20 秒。</p>
+
+  <div class="step">
+    <div class="n">1</div>
+    <div class="body">
+      <h2>打开扩展页，开启「开发者模式」</h2>
+      <p>地址栏输入 <strong>chrome://extensions</strong> 回车（脚本可能已帮你打开），把页面<strong>右上角</strong>的「开发者模式」开关拨开：</p>
+      <div class="mock">
+        <span class="addr">chrome://extensions</span>
+        <span class="lbl">开发者模式</span>
+        <span class="toggle"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="n">2</div>
+    <div class="body">
+      <h2>点「加载已解压的扩展程序」</h2>
+      <p>开发者模式开启后，页面左上方会出现这个按钮：</p>
+      <div class="mock"><span class="btnmock">加载已解压的扩展程序</span></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="n">3</div>
+    <div class="body">
+      <h2>粘贴路径，选择文件夹</h2>
+      <p>在弹出的文件选择框里按 <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>，粘贴（路径已在剪贴板）后回车，点「选择」：</p>
+      <div class="path">~/.miaoxiang/extension</div>
+    </div>
+  </div>
+
+  <div class="done">
+    <strong>完成。</strong>点浏览器工具栏的妙想图标（或快捷键 Alt+Shift+D）即可在任意网页上使用。
+    以后更新全自动，不需要再来这个页面。
+  </div>
+</main>
+</body>
+</html>
