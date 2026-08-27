@@ -160,12 +160,16 @@ def main() -> None:
         if ensure_server() and birefnet_cutout(src, dst):
             print(f"saved {dst} ({dst.stat().st_size} bytes, backend=birefnet-eagle)")
             return
+        # 回退优先级：本地缓存里有 birefnet-general.onnx（质量与 Eagle 后端同款，
+        # 妙想安装器会预下载）就用它，没有再退 u2net。
+        _mdir = Path(os.environ.get("U2NET_HOME", Path.home() / ".u2net"))
+        _fb = "birefnet-general" if (_mdir / "birefnet-general.onnx").exists() else "u2net"
         print(
             "warning: BiRefNet 服务不可用（Eagle 插件缺失或启动失败，详见 "
-            f"{SERVER_LOG}），回退 rembg u2net",
+            f"{SERVER_LOG}），回退 rembg " + _fb,
             file=sys.stderr,
         )
-        model = "u2net"
+        model = _fb
 
     rembg_cutout(src, dst, model)
     print(f"saved {dst} ({dst.stat().st_size} bytes, backend=rembg/{model})")

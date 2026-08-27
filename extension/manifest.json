@@ -1,6 +1,6 @@
 {
   "name": "妙想",
-  "version": "2.0",
+  "version": "2.0.1",
   "description": "你别动，我来整",
   "manifest_version": 3,
   "icons": {
@@ -31,14 +31,18 @@
       "128": "icons/icon128.png"
     }
   },
-  "web_accessible_resources": [{
-    "resources": [
-      "toolbar/*",
-      "toolbar/assets/*",
-      "icons/icon48.png"
-    ],
-    "matches": ["<all_urls>"]
-  }],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "toolbar/*",
+        "toolbar/assets/*",
+        "icons/icon48.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "commands": {
     "_execute_action": {
       "suggested_key": {

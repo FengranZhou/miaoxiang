@@ -82,12 +82,19 @@ mx_setup_watermark_env() {
 
 mx_download_models() {
   mkdir -p "$HOME/.u2net"
-  local m
+  local m u ok
   for m in birefnet-general.onnx u2net.onnx; do
     local dst="$HOME/.u2net/$m"
     [[ -s "$dst" ]] && continue
-    mx_log "→ 下载抠图模型 $m（一次性，较大请耐心）…"
-    if curl -L --fail --retry 3 -C - -o "$dst.part" "$MODEL_BASE/$m" >>"$MX_LOG" 2>&1; then
+    mx_log "→ 下载抠图模型 $m（一次性，请耐心）…"
+    ok=0
+    # 镜像优先（国内直连 GitHub Release 常见 KB 级龟速）；镜像挂了退直连。
+    # --speed-limit：持续 30s 低于 50KB/s 视为坏源，及时放弃换下一个。
+    for u in "https://gh-proxy.com/$MODEL_BASE/$m" "$MODEL_BASE/$m"; do
+      if curl -L --fail --retry 2 -C - --speed-limit 51200 --speed-time 30 \
+           -o "$dst.part" "$u" >>"$MX_LOG" 2>&1; then ok=1; break; fi
+    done
+    if [[ $ok -eq 1 ]]; then
       mv "$dst.part" "$dst"; mx_log "✓ 模型就绪：$m"
     else
       rm -f "$dst.part"
