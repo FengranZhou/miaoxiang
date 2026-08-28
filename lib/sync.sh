@@ -59,9 +59,15 @@ mx_setup_anystyle_env() {
   if [[ $need_npm -eq 1 ]]; then
     mx_log "→ 按图生 npm 依赖安装中…"
     local npm_ok=0 reg
+    # 用妙想自己的 npm 缓存目录，不碰用户的 ~/.npm ——
+    # 实测有同事的 ~/.npm 属主错乱（历史上 sudo npm 留下的），报
+    # EACCES/EEXIST 且换任何源都装不上；独立缓存能完全绕开，且无需 sudo。
+    local npm_cache="$MX_ROOT/npm-cache"
+    mkdir -p "$npm_cache"
     # 镜像优先 + 官方源兜底；失败清掉半成品再重来，避免残留把下次判定带偏
     for reg in "$NPM_REGISTRY" "https://registry.npmjs.org"; do
-      if (cd "$d" && npm install --registry="$reg" --no-audit --no-fund >>"$MX_LOG" 2>&1) \
+      if (cd "$d" && npm install --registry="$reg" --cache "$npm_cache" \
+            --no-audit --no-fund >>"$MX_LOG" 2>&1) \
          && [[ -f "$d/node_modules/playwright-core/package.json" ]]; then
         npm_ok=1; break
       fi

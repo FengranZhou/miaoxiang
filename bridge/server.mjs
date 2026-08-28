@@ -275,7 +275,9 @@ const server = createServer((req, res) => {
         { timeout: 180_000 }, (err, stdout, stderr) => {
           try { writeFileSync(join(LOG_DIR, `diverge-${Date.now()}.log`),
             `file=${file}\nprompt=${prompt}\n--- stdout ---\n${stdout || ""}\n--- stderr ---\n${stderr || ""}`); } catch (_) {}
-          if (err) sendJson(res, 200, { ok: false, error: (String(stderr || "").trim().split("\n").pop()) || ("驱动失败：" + String(err.message || err)) });
+          // 保留完整 stderr（多行提示的首句常是原因、末句才是修复办法，
+          // 只取最后一行会把原因丢掉）；截断防止超长日志灌进面板。
+          if (err) sendJson(res, 200, { ok: false, error: (String(stderr || "").trim().slice(-500)) || ("驱动失败：" + String(err.message || err)) });
           else sendJson(res, 200, { ok: true, file });
         });
     });
