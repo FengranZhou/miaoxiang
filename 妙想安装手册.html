@@ -164,7 +164,8 @@
       </div>
       <p><strong>b.</strong> 点左上方出现的「加载未打包的扩展程序」（旧版 Chrome 叫「加载已解压的扩展程序」）：</p>
       <div class="mock"><span class="btnmock">加载未打包的扩展程序</span></div>
-      <p><strong>c.</strong> 在弹出的文件选择框里按 <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>，输入下面的路径（脚本已帮你复制到剪贴板，直接粘贴也行），回车 → 点「选择」：</p>
+      <p><strong>c.</strong> 安装脚本已经帮你打开了一个 Finder 窗口，里面有个选中的 <code>extension</code> 文件夹——<strong>把它直接拖进弹出的文件选择框里</strong>，然后点「选择」。</p>
+      <p class="note">找不到那个 Finder 窗口的话，备选做法：在选择框里按 <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>，粘贴下面的路径（输入框不会出现联想列表，是正常的），<strong>直接按回车</strong> → 点「选择」：</p>
       <div class="path"><span id="extpath">~/.miaoxiang/extension</span><button class="copy" onclick="cp('~/.miaoxiang/extension', this)">复制</button></div>
     </div>
   </div>
@@ -174,57 +175,10 @@
     <div class="b">
       <h2>开始使用</h2>
       <p>随便打开一个网页，点浏览器工具栏的<strong>妙想图标</strong>（或快捷键 <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>），看到工具栏就装好了。</p>
-      <p>部分功能首次使用时需要登录一次<strong>你自己的账号</strong>（都只登一次）：</p>
-      <table>
-        <tr><th>功能</th><th>首次需要</th></tr>
-        <tr><td>调样式 / 采集 / 资产库 / 分析 / 清单</td><td><strong>无</strong>，直接用</td></tr>
-        <tr><td>AI 深度分析、找参考（粘 prompt 执行）</td><td>自己的 Claude Code（终端跑 <code>claude -p 你好</code> 有回应即可）</td></tr>
-        <tr><td>发散（生成设计变体）</td><td>弹出的窗口里登录自己的 Variant 账号</td></tr>
-        <tr><td>按图生（参考图生成新图）</td><td>弹出的窗口里登录自己的豆包账号</td></tr>
-      </table>
     </div>
   </div>
 
-  <hr class="divider">
 
-  <p class="sect">遇到问题</p>
-
-  <details>
-    <summary>install.command 提示「无法打开」</summary>
-    <p>你双击了。改为<strong>右键 → 打开 → 再点「打开」</strong>。</p>
-  </details>
-  <details>
-    <summary>安装中途失败 / 抠图模型没下完</summary>
-    <p>重新右键打开 <code>install.command</code> 跑一次即可，已完成的部分会自动跳过。日志在 <code>~/.miaoxiang/update.log</code>。</p>
-  </details>
-  <details>
-    <summary>按图生最后的确认浮窗打不开</summary>
-    <p>终端执行 <code>bash ~/.claude/skills/按图生/bin/build-confirm.sh</code> 现场重编一个。首次可能提示安装「命令行开发者工具」，装完重跑。</p>
-  </details>
-  <details>
-    <summary>AI 深度分析提示「本地服务未就绪」</summary>
-    <p>先确认 <code>claude -p 你好</code> 能跑通，然后终端执行 <code>bash ~/.miaoxiang/bridge/install.sh</code> 重装服务。</p>
-  </details>
-  <details>
-    <summary>用 Eagle 的话，抠图可以快好几倍</summary>
-    <p>在 Eagle 插件市场安装「AI 自动抠图」插件即可，妙想会自动探测并使用，无需任何配置。</p>
-  </details>
-  <details>
-    <summary>怎么卸载</summary>
-    <p>终端依次执行：<br>
-    <code>launchctl unload ~/Library/LaunchAgents/com.miaoxiang.updater.plist</code><br>
-    <code>launchctl unload ~/Library/LaunchAgents/com.uxaudit.bridge.plist</code><br>
-    <code>rm -rf ~/.miaoxiang ~/Library/LaunchAgents/com.miaoxiang.updater.plist ~/Library/LaunchAgents/com.uxaudit.bridge.plist</code><br>
-    再到 <code>chrome://extensions</code> 移除扩展即可。</p>
-  </details>
-
-  <hr class="divider">
-
-  <footer>
-    更新全自动：每天后台静默检查，扩展部分的更新在下次重启 Chrome 后生效（有系统通知）。
-    工具不上传任何数据，采集内容存在你自己的浏览器里，AI 功能全部用你自己的账号。
-    其他问题找分发者。
-  </footer>
 </main>
 <script>
 function cp(text, btn) {

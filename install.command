@@ -82,6 +82,9 @@ echo "✓ 每日自动更新已开启（每天 11:30 静默检查）"
 # ---- 4. 收尾引导：唯一的手动步骤 -------------------------------------------
 EXT_DIR="$MX_ROOT/extension"
 printf '%s' "$EXT_DIR" | pbcopy
+# Finder 里定位并选中 extension 文件夹——用户把它拖进 Chrome 的文件选择框即可，
+# 免去在隐藏目录里 Cmd+Shift+G 输路径的门槛
+open -R "$EXT_DIR" 2>/dev/null || true
 echo ""
 echo "==============================================="
 echo "  只剩最后一步（手动，约 20 秒）："
