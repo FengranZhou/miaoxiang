@@ -92,7 +92,7 @@ mx_download_models() {
   for m in birefnet-general.onnx u2net.onnx; do
     local dst="$HOME/.u2net/$m"
     [[ -s "$dst" ]] && continue
-    mx_log "→ 下载抠图模型 $m（一次性，请耐心）…"
+    mx_log "→ 下载抠图模型 ${m}（一次性，请耐心）…"
     ok=0
     # 镜像优先（国内直连 GitHub Release 常见 KB 级龟速）；镜像挂了退直连。
     # --speed-limit：持续 30s 低于 50KB/s 视为坏源，及时放弃换下一个。

@@ -7,7 +7,7 @@
 set -uo pipefail
 
 MX_ROOT="$HOME/.miaoxiang"
-[[ -d "$MX_ROOT/.git" ]] || { echo "✗ 未找到 $MX_ROOT（先跑 install.command）"; exit 1; }
+[[ -d "$MX_ROOT/.git" ]] || { echo "✗ 未找到 ${MX_ROOT}（先跑 install.command）"; exit 1; }
 [[ "${1:-}" == "--silent" ]] && export MX_SILENT=1
 
 BEFORE=$(git -C "$MX_ROOT" rev-parse HEAD 2>/dev/null || echo none)
@@ -29,7 +29,7 @@ miaoxiang_sync_all
 VER=$(python3 -c "import json;print(json.load(open('$MX_ROOT/extension/manifest.json'))['version'])" 2>/dev/null || echo "?")
 
 if git -C "$MX_ROOT" diff --name-only "$BEFORE" "$AFTER" | grep -q "^extension/"; then
-  MSG="妙想已更新到 v$VER，扩展部分在下次重启 Chrome 后生效"
+  MSG="妙想已更新到 v${VER}，扩展部分在下次重启 Chrome 后生效"
   # 静默模式下发系统通知，让用户知道有更新落地了
   osascript -e "display notification \"$MSG\" with title \"妙想\"" 2>/dev/null || true
   [[ "${MX_SILENT:-0}" == "1" ]] || echo "✓ $MSG"
