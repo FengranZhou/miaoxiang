@@ -116,6 +116,9 @@ echo "  1. Chrome 打开 chrome://extensions"
 echo "  2. 右上角打开「开发者模式」"
 echo "  3. 点「加载未打包的扩展程序」（旧版 Chrome 叫「加载已解压的扩展程序」）"
 echo "  4. 弹出的选择框里按 Cmd+Shift+G，粘贴（路径已复制）→ 回车 → 选择"
+echo ""
+echo "  ⚠️ 必须选这个路径：$EXT_DIR"
+echo "     不要选下载文件夹里的 extension——那个不会自动更新，会一直停在旧版本。"
 echo "==============================================="
 # 尽力自动打开扩展页（失败不影响，照《妙想安装手册》第 3 步手动操作即可）
 osascript -e 'tell application "Google Chrome" to activate' \

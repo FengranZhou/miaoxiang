@@ -166,9 +166,15 @@
       </div>
       <p><strong>b.</strong> 点左上方出现的「加载未打包的扩展程序」（旧版 Chrome 叫「加载已解压的扩展程序」）：</p>
       <div class="mock"><span class="btnmock">加载未打包的扩展程序</span></div>
-      <p><strong>c.</strong> 安装脚本已经帮你打开了一个 Finder 窗口，里面有个选中的 <code>extension</code> 文件夹——<strong>把它直接拖进弹出的文件选择框里</strong>，然后点「选择」。</p>
-      <p class="note">找不到那个 Finder 窗口的话，备选做法：在选择框里按 <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>，粘贴下面的路径（输入框不会出现联想列表，是正常的），<strong>直接按回车</strong> → 点「选择」：</p>
+      <p><strong>c.</strong> 在弹出的文件选择框里按 <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>，粘贴下面这个路径（输入框不会出现联想列表，是正常的），<strong>直接按回车</strong> → 点「选择」：</p>
       <div class="path"><span id="extpath">~/.miaoxiang/extension</span><button class="copy" onclick="cp('~/.miaoxiang/extension', this)">复制</button></div>
+      <div class="warn">
+        <p><strong>务必用上面这个路径</strong>，不要选下载文件夹（<code>miaoxiang-main</code>）里的 extension——
+        两个文件夹长得一样，但只有 <code>~/.miaoxiang</code> 里的那个会自动更新，
+        选错了以后会一直停在旧版本。</p>
+        <p class="note">安装脚本也帮你打开了一个已选中正确文件夹的 Finder 窗口，直接拖进选择框也可以。
+        想确认有没有选对：装好后在扩展卡片点「详情」，看「来源」是不是 <code>.miaoxiang</code> 开头的路径。</p>
+      </div>
     </div>
   </div>
 

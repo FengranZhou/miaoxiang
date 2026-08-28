@@ -261,7 +261,9 @@
           if (!r || !r.ok) return fail('更新失败：' + ((r && r.error) || '未知原因') + '。可联系分发者')
           go.textContent = '完成'
           result.className = 'result ok'
-          result.textContent = '更新完成，完全退出 Chrome（Cmd+Q）再打开即生效'
+          // 扩展会自我重载（见 background 的 liaisonSelfUpdate），当前页面里的
+          // 工具栏会随之失联——提示用户刷新页面即可，不必碰扩展管理页。
+          result.textContent = '更新完成，刷新本页即可使用新版'
         })
       } catch (e) { fail('更新失败：' + String(e && e.message || e)) }
     })

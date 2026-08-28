@@ -142,8 +142,17 @@ PYEOF
   mx_log "✓ CLAUDE 使用须知已写入 ~/.claude/CLAUDE.md（miaoxiang 标记块）"
 }
 
+# 受管标记：只在 ~/.miaoxiang/extension 里生成，不入 git。扩展启动时读它判断
+# 自己是不是「会被自动更新的那一份」；下载文件夹里的副本没有此文件 → 扩展告警。
+mx_write_install_tag() {
+  local ext="$MX_ROOT/extension"
+  [[ -d "$ext" ]] || return 0
+  printf '{"managed":true,"root":"%s"}\n' "$MX_ROOT" > "$ext/install-tag.json"
+}
+
 miaoxiang_sync_all() {
   mkdir -p "$MX_ROOT"; touch "$MX_LOG"
+  mx_write_install_tag
   mx_sync_skills
   mx_setup_bridge
   mx_setup_anystyle_env

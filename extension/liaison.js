@@ -1065,9 +1065,12 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
         if (!resp.ok) { sendResponse({ ok: false, error: 'http ' + resp.status }); return }
         const data = await resp.json()
         if (data && data.ok) {
-          // 更新落盘后立刻重查一次版本，让角标尽快熄灭
-          liaisonCheckForUpdate()
-          sendResponse({ ok: true, message: data.message || '' })
+          // 关键：unpacked 扩展的文件只在「加载/重新加载」时读取，重启浏览器
+          // 并不会重读磁盘。所以更新落盘后必须自己 reload，新版本才真正生效——
+          // 否则用户得手动去 chrome://extensions 点刷新。
+          // 先回响应再重载（reload 会立刻销毁 SW，消息通道随之断开）。
+          sendResponse({ ok: true, message: data.message || '', reloading: true })
+          setTimeout(() => { try { platform.runtime.reload() } catch (_) {} }, 600)
         } else {
           sendResponse({ ok: false, error: (data && data.error) || '更新失败' })
         }
@@ -1293,6 +1296,43 @@ platform.alarms.onAlarm.addListener((a) => {
   if (a.name === 'liaison-update-check') liaisonCheckForUpdate()
 })
 platform.action.onClicked.addListener(() => { liaisonMaybeCheckForUpdate() })
+
+// 装错目录的防呆：用户容易直接从下载文件夹（miaoxiang-main/extension）加载扩展，
+// 那份不受更新器管理，会永远停在下载当时的版本——「立即更新」看着成功实则不生效。
+//
+// 判定办法：更新器每次同步后会在受管目录写 install-tag.json（内含当前版本号）。
+// 扩展用 runtime.getURL 读自己目录里的这个文件：
+//   - 读不到           → 不是受管副本（下载文件夹那份没有该文件）→ 警告
+//   - 版本对不上 manifest → 文件是旧的拷贝 → 同样警告
+// 桥不在（没装/未启动）时不判定，避免误报。
+async function liaisonCheckInstallPath() {
+  try {
+    const bridge = await fetch('http://127.0.0.1:8765/ping').catch(() => null)
+    if (!bridge || !bridge.ok) return // 未走安装器的环境（如作者机），不判定
+
+    const current = platform.runtime.getManifest().version
+    let managed = false
+    try {
+      const tagResp = await fetch(platform.runtime.getURL('install-tag.json'))
+      if (tagResp.ok) {
+        const tag = await tagResp.json()
+        managed = !!(tag && tag.managed)
+      }
+    } catch (_) {}
+
+    await platform.storage.local.set({ liaisonInstallUnmanaged: !managed })
+    if (!managed) {
+      platform.action.setBadgeText({ text: '!' })
+      platform.action.setBadgeBackgroundColor({ color: '#FFB84D' })
+      platform.action.setTitle({
+        title: '妙想：当前扩展是从下载文件夹加载的，不会自动更新。\n' +
+               '请到 chrome://extensions 移除后，改从 ~/.miaoxiang/extension 重新加载。',
+      })
+    }
+    void current
+  } catch (_) {}
+}
+liaisonCheckInstallPath()
 
 // SW 唤醒时同步一次角标（badge 不跨 SW 生命周期持久，读 storage 恢复）
 platform.storage.local.get('liaisonUpdateAvailable').then(
