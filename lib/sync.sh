@@ -50,13 +50,28 @@ mx_setup_anystyle_env() {
   # Confirm.app / 可执行去 Gatekeeper 隔离（下载产物首次运行会被拦）
   xattr -dr com.apple.quarantine "$d/bin" 2>/dev/null || true
 
-  # npm 依赖：node_modules 缺失或 lock 文件比它新时装
-  if [[ ! -d "$d/node_modules" || "$d/package-lock.json" -nt "$d/node_modules" ]]; then
+  # npm 依赖。判定标准不是「node_modules 目录在不在」——装到一半失败会留下
+  # 半成品目录，光看目录会误判为已装好（同事实测：发散报「找不到 playwright-core」）。
+  # 这里改为检查真正被消费的那个包是否可用。
+  local need_npm=0
+  [[ -f "$d/node_modules/playwright-core/package.json" ]] || need_npm=1
+  [[ "$d/package-lock.json" -nt "$d/node_modules" ]] && need_npm=1
+  if [[ $need_npm -eq 1 ]]; then
     mx_log "→ 按图生 npm 依赖安装中…"
-    if (cd "$d" && npm install --registry="$NPM_REGISTRY" --no-audit --no-fund >>"$MX_LOG" 2>&1); then
+    local npm_ok=0 reg
+    # 镜像优先 + 官方源兜底；失败清掉半成品再重来，避免残留把下次判定带偏
+    for reg in "$NPM_REGISTRY" "https://registry.npmjs.org"; do
+      if (cd "$d" && npm install --registry="$reg" --no-audit --no-fund >>"$MX_LOG" 2>&1) \
+         && [[ -f "$d/node_modules/playwright-core/package.json" ]]; then
+        npm_ok=1; break
+      fi
+      rm -rf "$d/node_modules"
+    done
+    if [[ $npm_ok -eq 1 ]]; then
       mx_log "✓ npm 依赖就绪"
     else
-      mx_log "⚠ npm install 失败（不影响其他功能）。稍后手动：cd $d && npm install --registry=$NPM_REGISTRY"
+      mx_log "⚠ npm 依赖安装失败 —— 「发散」与「按图生」将不可用（其他功能不受影响）。"
+      mx_log "  可稍后重跑更新程序重试；持续失败请把 ${MX_LOG} 发给分发者。"
     fi
   fi
 

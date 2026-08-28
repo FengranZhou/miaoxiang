@@ -47,7 +47,10 @@ for (const p of PW_CANDIDATES) {
   } catch (_) {}
 }
 if (!chromium) {
-  die("找不到 playwright-core。请确认 ~/.claude/skills/按图生/node_modules 存在，或设置 PLAYWRIGHT_CORE 指向它。", 3);
+  // 面向最终用户的自救指引：这类缺失几乎都是安装时 npm 装依赖失败（网络），
+  // 重跑一次更新程序即可补装，不该让用户去研究 node_modules 是什么。
+  die("运行环境缺少组件（依赖未装好，通常是安装时网络不稳）。\n" +
+      "修复：终端执行 bash ~/.miaoxiang/update.command 后重试。", 3);
 }
 
 // Chrome 可执行文件：按平台探测，允许环境变量覆盖
