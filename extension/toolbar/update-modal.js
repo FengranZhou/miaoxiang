@@ -261,7 +261,7 @@
           if (!r || !r.ok) return fail('更新失败：' + ((r && r.error) || '未知原因') + '。可联系分发者')
           go.textContent = '完成'
           result.className = 'result ok'
-          result.textContent = '更新完成，重启 Chrome 后生效'
+          result.textContent = '更新完成，完全退出 Chrome（Cmd+Q）再打开即生效'
         })
       } catch (e) { fail('更新失败：' + String(e && e.message || e)) }
     })
