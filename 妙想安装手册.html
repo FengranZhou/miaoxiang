@@ -177,7 +177,18 @@
     <div class="b">
       <h2>开始使用</h2>
       <p>随便打开一个网页，点浏览器工具栏的<strong>妙想图标</strong>（或快捷键 <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>），看到工具栏就装好了。</p>
-      <p class="note">装好之后，当初下载的 zip 和解压出的 <code>miaoxiang-main</code> 文件夹都<strong>可以删掉</strong>——工具已经安置进系统，不再依赖它们；以后更新也是全自动的。</p>
+      <p class="note">装好之后，当初下载的 zip 和解压出的 <code>miaoxiang-main</code> 文件夹都<strong>可以删掉</strong>——工具已经安置进系统，不再依赖它们。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="n">5</div>
+    <div class="b">
+      <h2>关于更新</h2>
+      <p>更新是<strong>全自动</strong>的：每天后台静默检查，功能类更新立即生效，扩展本身的更新在下次重启 Chrome 后生效（会有系统通知）。</p>
+      <p>如果妙想图标上出现红色 <strong>NEW</strong> 角标，说明有新版还没拉下来（网络慢或当天还没轮到）。<strong>不用去 chrome://extensions 重载</strong>，把下面这行粘进「终端」回车即可立刻更新，完事重启一下 Chrome：</p>
+      <div class="path"><span>bash ~/.miaoxiang/update.command</span><button class="copy" onclick="cp('bash ~/.miaoxiang/update.command', this)">复制</button></div>
+      <p class="note">（终端 = 聚焦搜索 <kbd>Cmd</kbd> + <kbd>空格</kbd> 输入「终端」回车。这条命令随时可用，和你有没有删掉当初的下载文件夹无关。）</p>
     </div>
   </div>
 
