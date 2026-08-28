@@ -4,7 +4,9 @@
 
 ## 安装（Mac，约 10 分钟，只需做一次）
 
-1. 下载本仓库：绿色 **Code** 按钮 → **Download ZIP**，解压
+1. 下载本仓库并解压。打不开 GitHub 的网络环境用镜像直链（浏览器打开即下载）：
+   `https://gh-proxy.com/https://github.com/FengranZhou/miaoxiang/archive/refs/heads/main.zip`
+   能直连的话也可以在仓库页点绿色 **Code** 按钮 → **Download ZIP**
 2. **右键点击 `install.command` → 打开 → 再点「打开」**
    （必须右键打开而不是双击：macOS 会拦截来自网络的脚本，右键打开是官方放行方式）
 3. 脚本跑完会自动弹出 Chrome 扩展页和图文指引，照做最后一步：
@@ -34,6 +36,9 @@ Chrome 后生效（有系统通知提示）。扩展图标出现红色 NEW 角�
 ## 常见问题
 
 **install.command 双击提示「无法打开」**：右键 → 打开 → 再点「打开」。
+
+**公司网络打不开 github.com**：不影响使用。下载用上面的镜像直链；安装器和每日
+自动更新会自动改走加速镜像，全程不需要你能直连 GitHub。
 
 **按图生的确认浮窗（Confirm.app）打不开**：终端执行
 `bash ~/.claude/skills/按图生/bin/build-confirm.sh` 现场重编一个（首次可能提示安装
