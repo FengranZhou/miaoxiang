@@ -1308,7 +1308,11 @@ platform.action.onClicked.addListener(() => { liaisonMaybeCheckForUpdate() })
 async function liaisonCheckInstallPath() {
   try {
     const bridge = await fetch('http://127.0.0.1:8765/ping').catch(() => null)
-    if (!bridge || !bridge.ok) return // 未走安装器的环境（如作者机），不判定
+    if (!bridge || !bridge.ok) return // 桥没跑，无从判定
+    // 只在「这台机器确实通过安装器分发过」时才判定：作者机走源码、没有
+    // ~/.miaoxiang，桥会回 managed:false，据此豁免（否则会把作者误判成错装）。
+    const ping = await bridge.json().catch(() => null)
+    if (!ping || ping.managed !== true) return
 
     const current = platform.runtime.getManifest().version
     let managed = false
@@ -1328,6 +1332,11 @@ async function liaisonCheckInstallPath() {
         title: '妙想：当前扩展是从下载文件夹加载的，不会自动更新。\n' +
                '请到 chrome://extensions 移除后，改从 ~/.miaoxiang/extension 重新加载。',
       })
+    } else {
+      // 复位：曾误报或用户已改正时，把告警痕迹清掉（角标交还给版本更新逻辑）
+      platform.action.setTitle({ title: '点击或按 Alt+Shift+D 启动妙想' })
+      const r = await platform.storage.local.get('liaisonUpdateAvailable')
+      liaisonApplyUpdateBadge(!!(r && r.liaisonUpdateAvailable))
     }
     void current
   } catch (_) {}

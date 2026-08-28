@@ -282,9 +282,13 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // 探活
+  // 探活。managed 字段告诉扩展「这台机器是不是通过安装器分发的」——
+  // 作者本机走源码、没有 ~/.miaoxiang，据此豁免错装检测，避免误报。
   if (req.method === "GET" && req.url === "/ping") {
-    sendJson(res, 200, { ok: true, service: "ux-audit-bridge", port: PORT });
+    sendJson(res, 200, {
+      ok: true, service: "ux-audit-bridge", port: PORT,
+      managed: existsSync(join(homedir(), ".miaoxiang", "update.command")),
+    });
     return;
   }
 
