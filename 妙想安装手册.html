@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>妙想 · 安装手册</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0F1B26; color: rgba(255,255,255,.92);
+    font: 400 15px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; justify-content: center; padding: 48px 20px 96px;
+  }
+  main { max-width: 680px; width: 100%; }
+  h1 { font-size: 26px; font-weight: 600; }
+  .sub { color: rgba(255,255,255,.62); margin: 10px 0 8px; }
+  .sub strong { color: rgba(255,255,255,.92); }
+  .meta { color: rgba(255,255,255,.42); font-size: 13px; margin-bottom: 40px; }
+
+  .step { display: flex; gap: 18px; margin-bottom: 44px; }
+  .n {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px;
+    background: #65FFB6; color: #12151A; text-align: center;
+    font: 600 15px/30px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  }
+  .b { flex: 1; min-width: 0; padding-top: 3px; }
+  .b h2 { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .b p { color: rgba(255,255,255,.62); font-size: 14px; margin-bottom: 12px; }
+  .b p strong { color: rgba(255,255,255,.92); }
+  .note { color: rgba(255,255,255,.42); font-size: 13px; }
+
+  .dl {
+    display: block; text-align: center; text-decoration: none;
+    background: #65FFB6; color: #12151A; font-weight: 600; font-size: 15px;
+    border-radius: 10px; padding: 14px 20px; margin: 4px 0 10px;
+  }
+  .dl:hover { background: #7AFFC4; }
+
+  kbd {
+    font: 500 12px/1 ui-monospace, Menlo, monospace;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+    border-bottom-width: 2px; border-radius: 5px; padding: 3px 7px;
+  }
+  code { font: 400 13px/1.6 ui-monospace, Menlo, monospace; color: #65FFB6; }
+
+  /* 界面示意 */
+  .mock {
+    background: rgba(0,0,0,.24); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px; font-size: 13px;
+  }
+  .mock .addr {
+    flex: 1; background: rgba(255,255,255,.06); border-radius: 999px;
+    padding: 6px 14px; color: rgba(255,255,255,.62);
+    font: 400 12.5px/1.5 ui-monospace, Menlo, monospace;
+  }
+  .toggle { width: 38px; height: 22px; border-radius: 999px; background: #65FFB6; position: relative; flex-shrink: 0; }
+  .toggle::after { content: ''; position: absolute; right: 2px; top: 2px; width: 18px; height: 18px; border-radius: 999px; background: #0F1B26; }
+  .btnmock {
+    display: inline-block; background: rgba(101,255,182,.16); color: #65FFB6;
+    border: 1px solid rgba(101,255,182,.4); border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; font-weight: 500;
+  }
+  .menu {
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px; padding: 6px 0; width: 200px; font-size: 13px; margin-bottom: 10px;
+  }
+  .menu div { padding: 6px 16px; color: rgba(255,255,255,.62); }
+  .menu .hl { background: rgba(101,255,182,.16); color: #65FFB6; font-weight: 500; }
+  .path {
+    background: rgba(0,0,0,.24); border: 1px dashed rgba(255,255,255,.22);
+    border-radius: 8px; padding: 10px 14px;
+    font: 400 13px/1.6 ui-monospace, Menlo, monospace; color: #65FFB6;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .copy {
+    flex-shrink: 0; cursor: pointer; border: 1px solid rgba(101,255,182,.4);
+    background: transparent; color: #65FFB6; border-radius: 6px;
+    padding: 4px 12px; font: 500 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  }
+  .copy:hover { background: rgba(101,255,182,.16); }
+
+  /* 账号前提 */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
+  th { text-align: left; font-weight: 600; background: rgba(255,255,255,.06); padding: 9px 13px; border: 1px solid rgba(255,255,255,.07); }
+  td { padding: 9px 13px; border: 1px solid rgba(255,255,255,.07); color: rgba(255,255,255,.62); }
+  td strong { color: rgba(255,255,255,.92); }
+
+  /* 折叠 FAQ */
+  details {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 10px;
+  }
+  summary { cursor: pointer; font-weight: 500; font-size: 14px; }
+  details p { color: rgba(255,255,255,.62); font-size: 13.5px; margin-top: 10px; }
+  details code { font-size: 12px; word-break: break-all; }
+
+  .sect { font-size: 15px; font-weight: 600; margin: 8px 0 14px; color: rgba(255,255,255,.92); }
+  .divider { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 40px 0 28px; }
+  footer { color: rgba(255,255,255,.42); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>妙想 · 安装手册</h1>
+  <p class="sub">在任何网页上直接选中元素：<strong>调样式、采参考、攒资产库、AI 审查、生成设计变体、按参考图生成新图</strong>。</p>
+  <p class="meta">仅支持 Mac · 全程约 10 分钟 · 只需装一次，以后自动更新</p>
+
+  <!-- ========================================================= -->
+  <div class="step">
+    <div class="n">1</div>
+    <div class="b">
+      <h2>下载并解压</h2>
+      <a class="dl" href="https://gh-proxy.com/https://github.com/FengranZhou/miaoxiang/archive/refs/heads/main.zip">下载妙想安装包（zip，约 4MB）</a>
+      <p class="note">点击即下载，不需要科学上网。下载完双击解压，得到 <code>miaoxiang-main</code> 文件夹。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="n">2</div>
+    <div class="b">
+      <h2>右键打开 install.command</h2>
+      <p>进入解压出的文件夹，找到 <code>install.command</code>，<strong>右键点它 → 「打开」→ 弹窗里再点「打开」</strong>：</p>
+      <div class="menu">
+        <div class="hl">打开</div>
+        <div>显示简介</div>
+        <div>重新命名</div>
+      </div>
+      <p class="note">必须右键而不是双击——macOS 会拦截来自网络的脚本，右键打开是官方放行方式。
+      之后终端会自动跑几分钟（安装服务、下载依赖和模型），期间不用管它；
+      如果中途报错退出，重新右键打开一次即可续装。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="n">3</div>
+    <div class="b">
+      <h2>把扩展装进 Chrome</h2>
+      <p>脚本跑完会自动打开 Chrome 的扩展页（没打开就手动在地址栏输入 <code>chrome://extensions</code>）。然后三小步：</p>
+      <p><strong>a.</strong> 页面右上角，打开「开发者模式」开关：</p>
+      <div class="mock">
+        <span class="addr">chrome://extensions</span>
+        <span style="white-space:nowrap">开发者模式</span>
+        <span class="toggle"></span>
+      </div>
+      <p><strong>b.</strong> 点左上方出现的「加载已解压的扩展程序」：</p>
+      <div class="mock"><span class="btnmock">加载已解压的扩展程序</span></div>
+      <p><strong>c.</strong> 在弹出的文件选择框里按 <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>，输入下面的路径（脚本已帮你复制到剪贴板，直接粘贴也行），回车 → 点「选择」：</p>
+      <div class="path"><span id="extpath">~/.miaoxiang/extension</span><button class="copy" onclick="cp('~/.miaoxiang/extension', this)">复制</button></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="n">4</div>
+    <div class="b">
+      <h2>开始使用</h2>
+      <p>随便打开一个网页，点浏览器工具栏的<strong>妙想图标</strong>（或快捷键 <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>），看到工具栏就装好了。</p>
+      <p>部分功能首次使用时需要登录一次<strong>你自己的账号</strong>（都只登一次）：</p>
+      <table>
+        <tr><th>功能</th><th>首次需要</th></tr>
+        <tr><td>调样式 / 采集 / 资产库 / 分析 / 清单</td><td><strong>无</strong>，直接用</td></tr>
+        <tr><td>AI 深度分析、找参考（粘 prompt 执行）</td><td>自己的 Claude Code（终端跑 <code>claude -p 你好</code> 有回应即可）</td></tr>
+        <tr><td>发散（生成设计变体）</td><td>弹出的窗口里登录自己的 Variant 账号</td></tr>
+        <tr><td>按图生（参考图生成新图）</td><td>弹出的窗口里登录自己的豆包账号</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <p class="sect">遇到问题</p>
+
+  <details>
+    <summary>install.command 提示「无法打开」</summary>
+    <p>你双击了。改为<strong>右键 → 打开 → 再点「打开」</strong>。</p>
+  </details>
+  <details>
+    <summary>安装中途失败 / 抠图模型没下完</summary>
+    <p>重新右键打开 <code>install.command</code> 跑一次即可，已完成的部分会自动跳过。日志在 <code>~/.miaoxiang/update.log</code>。</p>
+  </details>
+  <details>
+    <summary>按图生最后的确认浮窗打不开</summary>
+    <p>终端执行 <code>bash ~/.claude/skills/按图生/bin/build-confirm.sh</code> 现场重编一个。首次可能提示安装「命令行开发者工具」，装完重跑。</p>
+  </details>
+  <details>
+    <summary>AI 深度分析提示「本地服务未就绪」</summary>
+    <p>先确认 <code>claude -p 你好</code> 能跑通，然后终端执行 <code>bash ~/.miaoxiang/bridge/install.sh</code> 重装服务。</p>
+  </details>
+  <details>
+    <summary>用 Eagle 的话，抠图可以快好几倍</summary>
+    <p>在 Eagle 插件市场安装「AI 自动抠图」插件即可，妙想会自动探测并使用，无需任何配置。</p>
+  </details>
+  <details>
+    <summary>怎么卸载</summary>
+    <p>终端依次执行：<br>
+    <code>launchctl unload ~/Library/LaunchAgents/com.miaoxiang.updater.plist</code><br>
+    <code>launchctl unload ~/Library/LaunchAgents/com.uxaudit.bridge.plist</code><br>
+    <code>rm -rf ~/.miaoxiang ~/Library/LaunchAgents/com.miaoxiang.updater.plist ~/Library/LaunchAgents/com.uxaudit.bridge.plist</code><br>
+    再到 <code>chrome://extensions</code> 移除扩展即可。</p>
+  </details>
+
+  <hr class="divider">
+
+  <footer>
+    更新全自动：每天后台静默检查，扩展部分的更新在下次重启 Chrome 后生效（有系统通知）。
+    工具不上传任何数据，采集内容存在你自己的浏览器里，AI 功能全部用你自己的账号。
+    其他问题找分发者。
+  </footer>
+</main>
+<script>
+function cp(text, btn) {
+  var done = function () { btn.textContent = '已复制'; setTimeout(function () { btn.textContent = '复制'; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function () { fallback(); });
+  } else { fallback(); }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+}
+</script>
+</body>
+</html>

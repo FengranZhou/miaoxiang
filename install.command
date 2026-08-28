@@ -90,8 +90,7 @@ echo "  2. 右上角打开「开发者模式」"
 echo "  3. 点「加载已解压的扩展程序」"
 echo "  4. 弹出的选择框里按 Cmd+Shift+G，粘贴（路径已复制）→ 回车 → 选择"
 echo "==============================================="
-# 尽力自动打开扩展页与图文引导（失败不影响，按上面手动操作即可）
+# 尽力自动打开扩展页（失败不影响，照《妙想安装手册》第 3 步手动操作即可）
 osascript -e 'tell application "Google Chrome" to activate' \
           -e 'tell application "Google Chrome" to open location "chrome://extensions/"' 2>/dev/null || true
-open "$MX_ROOT/guide.html" 2>/dev/null || true
 echo "装好后点浏览器工具栏的妙想图标（或 Alt+Shift+D）即可使用。祝顺利！"
