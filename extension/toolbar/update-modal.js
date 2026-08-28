@@ -165,6 +165,13 @@
         font: 500 12px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
       }
       .go:hover { background: #7AFFC4; }
+      .go:disabled { opacity: .6; cursor: default; }
+      .result {
+        margin-top: 12px; font: 400 11px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+        color: rgba(255,255,255,.62); text-align: right;
+      }
+      .result.err { color: #FF6B6B; }
+      .result.ok { color: #65FFB6; }
     `
     root.appendChild(style)
 
@@ -193,10 +200,9 @@
           : '<div class="hint">请向工具分发者获取最新安装包。</div>'}
         <div class="actions">
           <button class="skip" type="button">跳过此版本</button>
-          ${downloadUrl
-            ? `<a class="go" href="${downloadUrl}" target="_blank" rel="noopener noreferrer">去更新</a>`
-            : '<button class="go" type="button" data-ack>知道了</button>'}
+          <button class="go" type="button" data-update>立即更新</button>
         </div>
+        <div class="result"></div>
       </div>
     `
     // 图标加载失败（如 web_accessible_resources 未放行）就整个摘掉，不留裂图
@@ -234,8 +240,31 @@
       } catch (_) {}
       close()
     })
-    const go = overlay.querySelector('.go')
-    if (go) go.addEventListener('click', () => { setTimeout(close, 100) })
+    // 「立即更新」：经 background 转发到本地桥执行更新程序。用户全程零手工，
+    // 不需要知道 ~/.miaoxiang 存在，也不用记命令——这是自动更新之外的唯一自救入口。
+    const go = overlay.querySelector('[data-update]')
+    const result = overlay.querySelector('.result')
+    if (go) go.addEventListener('click', () => {
+      go.disabled = true
+      go.textContent = '更新中…'
+      result.className = 'result'
+      result.textContent = '正在下载最新版本，可能需要一两分钟'
+      const fail = (msg) => {
+        go.disabled = false
+        go.textContent = '重试'
+        result.className = 'result err'
+        result.textContent = msg
+      }
+      try {
+        platformRef.runtime.sendMessage({ action: 'liaisonSelfUpdate' }, (r) => {
+          if (platformRef.runtime.lastError) return fail('更新失败：' + platformRef.runtime.lastError.message)
+          if (!r || !r.ok) return fail('更新失败：' + ((r && r.error) || '未知原因') + '。可联系分发者')
+          go.textContent = '完成'
+          result.className = 'result ok'
+          result.textContent = '更新完成，重启 Chrome 后生效'
+        })
+      } catch (e) { fail('更新失败：' + String(e && e.message || e)) }
+    })
 
     // 过渡起始态要先被绘制提交，强制 reflow 后再加 .in，否则动画不播
     void overlay.offsetHeight

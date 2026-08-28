@@ -1050,6 +1050,35 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // however, can fetch() those URLs with the extension's host permissions
   // (<all_urls>), bypassing the page CORS restriction. Content script sends the
   // stylesheet href here, we return the raw CSS text for it to parse locally.
+  // 更新弹窗的「立即更新」：转发到本地桥执行 ~/.miaoxiang/update.command。
+  // 走 background 而非 content script 直连：页面 CSP 会挡 localhost 请求。
+  // 更新耗时可达数分钟（拉取 + 依赖同步），这里给 10 分钟上限。
+  if (req && req.action === 'liaisonSelfUpdate') {
+    (async () => {
+      try {
+        const ctrl = new AbortController()
+        const timer = setTimeout(() => ctrl.abort(), 600000)
+        const resp = await fetch('http://127.0.0.1:8765/self-update', {
+          method: 'POST', signal: ctrl.signal,
+        })
+        clearTimeout(timer)
+        if (!resp.ok) { sendResponse({ ok: false, error: 'http ' + resp.status }); return }
+        const data = await resp.json()
+        if (data && data.ok) {
+          // 更新落盘后立刻重查一次版本，让角标尽快熄灭
+          liaisonCheckForUpdate()
+          sendResponse({ ok: true, message: data.message || '' })
+        } else {
+          sendResponse({ ok: false, error: (data && data.error) || '更新失败' })
+        }
+      } catch (e) {
+        const msg = String(e && e.message || e)
+        sendResponse({ ok: false, error: /abort/i.test(msg) ? '更新超时' : '本地服务未运行（' + msg + '）' })
+      }
+    })()
+    return true
+  }
+
   if (req && req.action === 'liaisonFetchCss') {
     (async () => {
       try {

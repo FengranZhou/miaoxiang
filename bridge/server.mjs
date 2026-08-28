@@ -288,6 +288,25 @@ const server = createServer((req, res) => {
     return;
   }
 
+  // 妙想「立即更新」：更新弹窗上的按钮调这里，替用户跑一次 update.command。
+  // 用户永远不需要知道 ~/.miaoxiang 的存在，也不用记任何命令——这是自动更新
+  // 之外唯一的自救入口，故意只在弹窗里出现。
+  if (req.method === "POST" && req.url === "/self-update") {
+    const updater = join(homedir(), ".miaoxiang", "update.command");
+    if (!existsSync(updater)) {
+      return sendJson(res, 200, { ok: false, error: "未找到更新程序，请联系分发者重新安装" });
+    }
+    execFile("/bin/bash", [updater], { timeout: 600_000 }, (err, stdout, stderr) => {
+      const tail = String(stdout || "").trim().split("\n").pop() || "";
+      if (err) {
+        sendJson(res, 200, { ok: false, error: (String(stderr || "").trim().split("\n").pop()) || String(err.message || err) });
+      } else {
+        sendJson(res, 200, { ok: true, message: tail || "已是最新版本" });
+      }
+    });
+    return;
+  }
+
   // 两段式 · 发起：立即返回 taskId，后台异步跑审查
   if (req.method === "POST" && req.url === "/audit/start") {
     let raw = "";
