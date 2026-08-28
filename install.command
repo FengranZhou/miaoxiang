@@ -18,9 +18,9 @@ echo "==============================="
 
 # ---- 0. 基础环境检查 -------------------------------------------------------
 [[ "$(uname)" == "Darwin" ]] || { echo "✗ 仅支持 macOS"; exit 1; }
-command -v git >/dev/null || { echo "✗ 需要 git：首次调用系统会弹出「安装命令行开发者工具」，装完后重新双击本文件"; git --version; exit 1; }
-command -v node >/dev/null || { echo "✗ 需要 Node.js（装了 Claude Code 一般就有）。请先安装 https://nodejs.org 再重试"; exit 1; }
-command -v python3 >/dev/null || { echo "✗ 需要 python3（macOS 自带，异常时先跑 xcode-select --install）"; exit 1; }
+command -v git >/dev/null || { echo "✗ 需要 git：首次调用系统会弹出「安装命令行开发者工具」，装完后重新右键打开本文件"; git --version; exit 1; }
+command -v python3 >/dev/null || echo "⚠ 未检测到 python3，抠图/去水印环境将跳过（可稍后补装）"
+# Node.js 不作硬前提：没有就在第 1.5 步自动装便携版（不动系统）
 
 # ---- 1. 安置常驻目录 ~/.miaoxiang -----------------------------------------
 # 国内直连 GitHub 大概率不通，clone/pull 一律「直连失败 → gh-proxy 镜像」双源。
@@ -47,6 +47,30 @@ else
     rsync -a "$SELF_DIR/" "$MX_ROOT/"
   fi
 fi
+
+# ---- 1.5 Node 运行时（无 Claude Code / 无 Node 的机器自动补齐） -------------
+# 便携版解压在 ~/.miaoxiang/runtime/node，不写系统目录、不需要管理员密码。
+# 桥服务 / 发散 / 按图生的 npm 依赖都靠它；lib/sync.sh 会自动把它加进 PATH。
+mx_ensure_node() {
+  command -v node >/dev/null && return 0
+  [[ -x "$MX_ROOT/runtime/node/bin/node" ]] && return 0
+  echo "→ 未检测到 Node.js，下载独立运行时（约 45MB，一次性）…"
+  local ver="v20.18.1" arch tarball base ok=0
+  case "$(uname -m)" in arm64) arch="darwin-arm64" ;; *) arch="darwin-x64" ;; esac
+  tarball="node-${ver}-${arch}.tar.gz"
+  mkdir -p "$MX_ROOT/runtime"
+  for base in "https://cdn.npmmirror.com/binaries/node/${ver}" "https://nodejs.org/dist/${ver}"; do
+    if curl -L --fail --retry 2 -C - -o "/tmp/${tarball}" "${base}/${tarball}"; then ok=1; break; fi
+  done
+  if [[ $ok -eq 1 ]] && tar -xzf "/tmp/${tarball}" -C "$MX_ROOT/runtime" \
+     && rm -rf "$MX_ROOT/runtime/node" && mv "$MX_ROOT/runtime/node-${ver}-${arch}" "$MX_ROOT/runtime/node"; then
+    rm -f "/tmp/${tarball}"
+    echo "✓ Node 运行时就绪（$("$MX_ROOT/runtime/node/bin/node" -v)）"
+  else
+    echo "⚠ Node 运行时安装失败：AI 分析/发散/按图生将不可用，其余功能不受影响（联网后重跑本文件可补）"
+  fi
+}
+mx_ensure_node
 
 # ---- 2. 同步各就位点（skills / 桥 / 环境 / 模型 / CLAUDE 片段） ------------
 # shellcheck source=/dev/null

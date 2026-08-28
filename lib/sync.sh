@@ -12,6 +12,12 @@
 
 MX_ROOT="${MX_ROOT:-$HOME/.miaoxiang}"
 MX_LOG="$MX_ROOT/update.log"
+
+# 便携 Node 运行时（无系统 Node 的机器由 install.command 解压到这里）。
+# 放 PATH 头部：install/update/launchd 三个入口都经过本文件，统一生效。
+if [[ -d "$MX_ROOT/runtime/node/bin" ]]; then
+  export PATH="$MX_ROOT/runtime/node/bin:$PATH"
+fi
 NPM_REGISTRY="https://registry.npmmirror.com"
 PIP_INDEX="https://pypi.tuna.tsinghua.edu.cn/simple"
 MODEL_BASE="https://github.com/FengranZhou/miaoxiang/releases/download/models-v1"

@@ -16,7 +16,7 @@ echo "后端目录: $DIR"
 # 1. 找 node
 NODE="$(command -v node || true)"
 if [ -z "$NODE" ]; then
-  for p in /usr/local/bin/node /opt/homebrew/bin/node "$HOME/.volta/bin/node"; do
+  for p in /usr/local/bin/node /opt/homebrew/bin/node "$HOME/.volta/bin/node" "$HOME/.miaoxiang/runtime/node/bin/node"; do
     [ -x "$p" ] && NODE="$p" && break
   done
 fi
