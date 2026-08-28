@@ -23,19 +23,25 @@ command -v node >/dev/null || { echo "✗ 需要 Node.js（装了 Claude Code �
 command -v python3 >/dev/null || { echo "✗ 需要 python3（macOS 自带，异常时先跑 xcode-select --install）"; exit 1; }
 
 # ---- 1. 安置常驻目录 ~/.miaoxiang -----------------------------------------
+# 国内直连 GitHub 大概率不通，clone/pull 一律「直连失败 → gh-proxy 镜像」双源。
+REPO_MIRROR="https://gh-proxy.com/$REPO_HTTPS"
+
+mx_clone() { # $1 = 目标目录
+  if git clone "$REPO_HTTPS" "$1" 2>/dev/null; then return 0; fi
+  echo "→ 直连 GitHub 不通，改走加速镜像…"
+  git clone "$REPO_MIRROR" "$1"   # origin 落在镜像上，以后自动更新也走镜像
+}
+
 if [[ "$SELF_DIR" == "$MX_ROOT" ]]; then
   echo "→ 已在常驻目录内运行，跳过安置"
 elif [[ -d "$MX_ROOT/.git" ]]; then
   echo "→ 常驻目录已存在，拉取最新版本…"
   git -C "$MX_ROOT" pull --ff-only || echo "⚠ 拉取失败（可能离线），继续用现有版本"
-elif [[ -d "$SELF_DIR/.git" ]]; then
-  echo "→ 从当前下载目录安置到 $MX_ROOT …"
-  git clone "$SELF_DIR" "$MX_ROOT"
-  git -C "$MX_ROOT" remote set-url origin "$REPO_HTTPS"
 else
-  # zip 下载没有 .git：优先在线 clone（这样以后才能自动更新），失败退化为纯拷贝
+  # 半途而废的旧安置（无 .git 的残留目录）直接清掉重来——机器管理目录，无用户数据
+  [[ -d "$MX_ROOT" ]] && rm -rf "$MX_ROOT"
   echo "→ 克隆仓库到 $MX_ROOT …"
-  if ! git clone "$REPO_HTTPS" "$MX_ROOT"; then
+  if ! mx_clone "$MX_ROOT"; then
     echo "⚠ 在线克隆失败，改用本地拷贝（自动更新将不可用，联网后可重新双击本文件修复）"
     mkdir -p "$MX_ROOT"
     rsync -a "$SELF_DIR/" "$MX_ROOT/"

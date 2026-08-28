@@ -1209,9 +1209,15 @@ function liaisonApplyUpdateBadge(available) {
 async function liaisonCheckForUpdate() {
   if (!LIAISON_VERSION_CHECK_URL.startsWith('https://')) return // --init 尚未回填
   try {
-    // 时间戳绕 gist raw 的 ~5 分钟 CDN 缓存
-    const resp = await fetch(`${LIAISON_VERSION_CHECK_URL}?t=${Date.now()}`, { cache: 'no-store' })
-    if (!resp.ok) return
+    // 时间戳绕 gist raw 的 ~5 分钟 CDN 缓存；直连不通（同事无代理的国内网络）
+    // 时自动换 gh-proxy 镜像重试，保证角标/弹窗兜底信号不失效
+    const url = `${LIAISON_VERSION_CHECK_URL}?t=${Date.now()}`
+    let resp = null
+    try { resp = await fetch(url, { cache: 'no-store' }) } catch (_) {}
+    if (!resp || !resp.ok) {
+      try { resp = await fetch(`https://gh-proxy.com/${url}`, { cache: 'no-store' }) } catch (_) { return }
+    }
+    if (!resp || !resp.ok) return
     const data = await resp.json()
     const latest = data && data.version
     if (!latest) return
