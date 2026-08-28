@@ -120,4 +120,7 @@ echo "==============================================="
 # 尽力自动打开扩展页（失败不影响，照《妙想安装手册》第 3 步手动操作即可）
 osascript -e 'tell application "Google Chrome" to activate' \
           -e 'tell application "Google Chrome" to open location "chrome://extensions/"' 2>/dev/null || true
-echo "装好后点浏览器工具栏的妙想图标（或 Alt+Shift+D）即可使用。祝顺利！"
+echo "装好后点浏览器工具栏的妙想图标（或 Alt+Shift+D）即可使用。"
+echo ""
+echo "扩展加载成功后：当初下载的 zip 和解压出的 miaoxiang-main 文件夹都可以删掉——"
+echo "工具已安置在系统里（~/.miaoxiang），不再依赖它们。祝顺利！"
