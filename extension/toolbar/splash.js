@@ -12,8 +12,10 @@
   // 用 !important 样式表压制，因为按钮有 rAF 循环在不断写内联 display。
   const hideStyle = document.createElement('style')
   hideStyle.id = HIDE_STYLE_ID
-  // 工具条(liaison-top-toolbar)是挂在 body 下的独立顶层元素，不在 liaison-app 里，要单独列
-  hideStyle.textContent = 'liaison-app, liaison-top-toolbar, #__li-toolbar-close-btn, #__li-hover-freeze-btn { opacity: 0 !important; pointer-events: none !important; }'
+  // 工具条(liaison-top-toolbar)和面板(liaison-style-panel)都是挂在 body 下的独立顶层元素，
+  // 不在 liaison-app 里，要单独列。面板还被 __liRaiseChrome 提进 popover top layer，
+  // 顶层不受 z-index 约束，光靠 overlay 的 z-index 压不住，只能用 opacity 压制。
+  hideStyle.textContent = 'liaison-app, liaison-top-toolbar, liaison-style-panel, #__li-toolbar-close-btn, #__li-hover-freeze-btn { opacity: 0 !important; pointer-events: none !important; }'
   ;(document.head || document.documentElement).appendChild(hideStyle)
 
   const overlay = document.createElement('div')

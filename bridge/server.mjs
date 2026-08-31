@@ -284,6 +284,87 @@ const server = createServer((req, res) => {
     return;
   }
 
+  // ==========================================================================
+  // 采集库落地：把库镜像成本地文件，一条快照一个文件。
+  //
+  // 为什么一条一文件而不是整库一个 JSON：库含截图（每条几百 KB~1MB），整库
+  // 动辄几百 MB，任何同步方案都扛不住整文件重写；拆开后天然增量，也为将来接
+  // 网盘/自建服务/对象存储留好格式（那时只需换传输层，格式不动）。
+  //
+  //   ~/妙想灵感库/snapshots/<id>.json   元数据（不含截图 base64）
+  //   ~/妙想灵感库/snapshots/<id>.jpg    截图（从 thumbnailUrl 的 dataURL 拆出）
+  //   ~/妙想灵感库/tombstones/<id>.json  删除墓碑（软删除，为多人同步预留）
+  // ==========================================================================
+  if (req.method === "POST" && req.url === "/library/sync") {
+    let raw = "";
+    req.on("data", (c) => { raw += c; if (raw.length > 200_000_000) req.destroy(); });
+    req.on("end", () => {
+      let payload;
+      try { payload = JSON.parse(raw || "{}"); }
+      catch (e) { return sendJson(res, 400, { ok: false, error: "bad json" }); }
+      try {
+        const root = payload.root || join(homedir(), "妙想灵感库");
+        const snapDir = join(root, "snapshots");
+        const tombDir = join(root, "tombstones");
+        mkdirSync(snapDir, { recursive: true });
+        mkdirSync(tombDir, { recursive: true });
+
+        const snaps = Array.isArray(payload.snapshots) ? payload.snapshots : [];
+        let written = 0, shots = 0, skipped = 0;
+        for (const s of snaps) {
+          if (!s || !s.id) continue;
+          const meta = { ...s };
+          // 截图另存为图片文件，元数据里只留文件名——JSON 保持小而可读
+          const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/i.exec(String(s.thumbnailUrl || ""));
+          if (m) {
+            const ext = m[1].toLowerCase() === "jpeg" ? "jpg" : m[1].toLowerCase();
+            const shotFile = `${s.id}.${ext}`;
+            const shotPath = join(snapDir, shotFile);
+            if (!existsSync(shotPath)) {
+              writeFileSync(shotPath, Buffer.from(m[2], "base64"));
+              shots++;
+            }
+            meta.thumbnailFile = shotFile;
+            delete meta.thumbnailUrl;
+          }
+          const metaPath = join(snapDir, `${s.id}.json`);
+          const next = JSON.stringify(meta, null, 2);
+          // 内容没变就不重写：避免每次同步都刷新 mtime（将来网盘会误判为全量变更）
+          if (existsSync(metaPath) && readFileSync(metaPath, "utf8") === next) { skipped++; continue; }
+          writeFileSync(metaPath, next);
+          written++;
+        }
+
+        // 墓碑：库里已消失、但磁盘还有的条目 → 记一条删除记录，并移走文件。
+        // 软删除而非直接抹掉，是为了将来多人同步时「删除」能正确传播、
+        // 不被别人的旧数据复活。
+        let tombed = 0;
+        const alive = new Set(snaps.map((s) => s && s.id).filter(Boolean));
+        if (payload.verified === true) { // 只有源自一次成功全量读取的同步才敢判定删除
+          for (const f of readdirSync(snapDir)) {
+            if (!f.endsWith(".json")) continue;
+            const id = f.slice(0, -5);
+            if (alive.has(id)) continue;
+            const tombPath = join(tombDir, `${id}.json`);
+            if (!existsSync(tombPath)) {
+              writeFileSync(tombPath, JSON.stringify({ id, deletedAt: Date.now() }, null, 2));
+              tombed++;
+            }
+            try { unlinkSync(join(snapDir, f)); } catch (_) {}
+            for (const ext of ["jpg", "png", "webp"]) {
+              const p = join(snapDir, `${id}.${ext}`);
+              if (existsSync(p)) { try { unlinkSync(p); } catch (_) {} }
+            }
+          }
+        }
+        sendJson(res, 200, { ok: true, root, written, shots, skipped, tombed, total: snaps.length });
+      } catch (e) {
+        sendJson(res, 200, { ok: false, error: String(e && e.message || e) });
+      }
+    });
+    return;
+  }
+
   // 探活。managed 字段告诉扩展「这台机器是不是通过安装器分发的」——
   // 作者本机走源码、没有 ~/.miaoxiang，据此豁免错装检测，避免误报。
   if (req.method === "GET" && req.url === "/ping") {

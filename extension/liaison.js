@@ -22,12 +22,23 @@ var platform = typeof browser === 'undefined'
 // （chrome://extensions 刷新 / 更新 / 浏览器重启）时清空，正好对应
 // "首次展示，reload 扩展后再展示一次" 的语义。SW 空闲被杀不影响（session 仍在）。
 // 门闩判定完成后再走 next()，保证 splash 始终先于 restore/inject 注入。
+// 门闩必须在 splash 注入「确认成功之后」才写：首次安装时，安装前就已打开的
+// 标签页拿不到 host 权限，executeScript 会被拒（rejection 原本被 swallow 静默
+// 吞掉）。若先乐观置位再注入，这一次性机会就被一次没播成的注入白白吃掉——
+// 同事首装点图标看不到开场，之后永远走 fadein 分支。注入失败时不写标记，
+// 把机会留给下一次唤起。
 const withSplashGate = (tab_id, swallow, next) => {
   const playAndNext = () => {
-    swallow(platform.scripting.executeScript({
+    const p = platform.scripting.executeScript({
       target: {tabId: tab_id},
       files: ['toolbar/splash.js'],
-    }))
+    })
+    if (p && typeof p.then === 'function') {
+      p.then(
+        () => { swallow(platform.storage.session.set({ liaisonSplashShown: true })) },
+        () => {},   // 注入被拒：门闩不落，下次唤起仍可播
+      )
+    }
     next()
   }
   try {
@@ -41,8 +52,7 @@ const withSplashGate = (tab_id, swallow, next) => {
         next()
         return
       }
-      swallow(platform.storage.session.set({ liaisonSplashShown: true }))
-      playAndNext()
+      playAndNext()   // 门闩改由 playAndNext 在注入成功后写
     }, playAndNext)
   } catch (_) { playAndNext() }
 }
@@ -989,6 +999,9 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
         // 镜像备份：主库落盘成功后并集更新备份。失败只告警（主库已安全写入）。
         liaisonBackupMerge(req.value).catch(e =>
           console.warn('[liaison-insp BG] 备份更新失败（主库已写入）:', String(e && e.message || e)))
+        // 本地落地：把库镜像成磁盘文件（~/妙想灵感库），让数据不再只活在浏览器里。
+        // 防抖 + 失败静默：这是旁路增强，绝不能拖累或阻断主库写入。
+        liaisonScheduleLibraryMirror(req.value, __verified)
         sendResponse({ ok: true })
         // 跨标签页同步：写入成功后广播给其它标签页刷新采集库缓存。
         // 主通道：往 chrome.storage.local 写一个「版本信号」（只是个自增戳，不是整库）。
@@ -1050,6 +1063,19 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // however, can fetch() those URLs with the extension's host permissions
   // (<all_urls>), bypassing the page CORS restriction. Content script sends the
   // stylesheet href here, we return the raw CSS text for it to parse locally.
+  // 手动触发一次全量落盘（首次启用、或想立刻同步时用）。
+  // 手动全量落盘。正式入口是扩展图标的右键菜单「立即备份灵感库」（见下方
+  // contextMenus 注册）——SW 控制台既发不了消息给自己、也调不到模块内的函数
+  // （本文件是 ES module），别再往那条路上走。
+  if (req && req.action === 'liaisonMirrorNow') {
+    liaisonDbGet(LIAISON_LIB_KEY)
+      .then(lib => liaisonMirrorLibrary(lib || { snapshots: [] }, true))
+      .then(() => platform.storage.local.get(['liaisonLibraryMirrorRoot', 'liaisonLibraryMirrorCount']))
+      .then(r => sendResponse({ ok: true, root: r && r.liaisonLibraryMirrorRoot, count: r && r.liaisonLibraryMirrorCount }))
+      .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }))
+    return true
+  }
+
   // 更新弹窗的「立即更新」：转发到本地桥执行 ~/.miaoxiang/update.command。
   // 走 background 而非 content script 直连：页面 CSP 会挡 localhost 请求。
   // 更新耗时可达数分钟（拉取 + 依赖同步），这里给 10 分钟上限。
@@ -1196,6 +1222,127 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
     return true
   }
 })
+
+// ---------------------------------------------------------------------------
+// 采集库本地落地（镜像到 ~/妙想灵感库）
+//
+// 动机：库此前只活在扩展的 IndexedDB 里——卸载扩展、清浏览器数据、换电脑都会
+// 丢光。镜像到磁盘后数据有了浏览器之外的载体；文件格式（一条快照一个 json +
+// 一张图）同时是将来做团队同步的基础，届时只需换传输层。
+//
+// 纪律：整条链路是旁路增强，任何失败都只告警——绝不能影响采集本身。
+// 防抖 5s：连续采集/编辑时合并成一次写盘，避免反复全量刷新文件 mtime。
+// ---------------------------------------------------------------------------
+let liaisonMirrorTimer = null
+let liaisonMirrorPending = null
+
+function liaisonScheduleLibraryMirror(lib, verified) {
+  liaisonMirrorPending = { lib, verified: verified === true }
+  if (liaisonMirrorTimer) clearTimeout(liaisonMirrorTimer)
+  liaisonMirrorTimer = setTimeout(() => {
+    liaisonMirrorTimer = null
+    const job = liaisonMirrorPending
+    liaisonMirrorPending = null
+    if (!job || !job.lib) return
+    liaisonMirrorLibrary(job.lib, job.verified).catch(() => {})
+  }, 5000)
+}
+
+// 启动兜底：只靠「写库时触发」的话，老用户不采集新东西就永远不会落盘。
+// 这里在扩展启动/安装时补一次判断——距上次落盘超过一天（或从未落过）就跑一次。
+// 延迟 20s 执行：避开启动高峰，也给本地桥留出被 launchd 拉起来的时间。
+async function liaisonMirrorOnStartup() {
+  try {
+    const r = await platform.storage.local.get('liaisonLibraryMirrorAt')
+    const last = Number(r && r.liaisonLibraryMirrorAt) || 0
+    if (Date.now() - last < 86400000) return // 一天内落过盘，不重复
+    setTimeout(() => {
+      liaisonDbGet(LIAISON_LIB_KEY)
+        .then(lib => {
+          const n = lib && Array.isArray(lib.snapshots) ? lib.snapshots.length : 0
+          if (!n) return // 空库不写盘，避免在磁盘上留下无意义的空目录
+          return liaisonMirrorLibrary(lib, true)
+        })
+        .catch(() => {})
+    }, 20000)
+  } catch (_) {}
+}
+platform.runtime.onStartup.addListener(liaisonMirrorOnStartup)
+platform.runtime.onInstalled.addListener(liaisonMirrorOnStartup)
+
+// 手动触发入口：扩展图标右键 →「立即备份灵感库」。
+// 首次启用、或想立刻把库刷到磁盘时用；平时靠写库后的自动镜像即可。
+function liaisonRunManualMirror() {
+  liaisonDbGet(LIAISON_LIB_KEY)
+    .then(lib => {
+      const n = lib && Array.isArray(lib.snapshots) ? lib.snapshots.length : 0
+      platform.action.setBadgeText({ text: '···' })
+      platform.action.setBadgeBackgroundColor({ color: '#4D9FFF' })
+      return liaisonMirrorLibrary(lib || { snapshots: [] }, true).then(() => n)
+    })
+    .then(async (n) => {
+      const r = await platform.storage.local.get(['liaisonLibraryMirrorRoot', 'liaisonLibraryMirrorAt'])
+      const ok = r && r.liaisonLibraryMirrorAt && Date.now() - r.liaisonLibraryMirrorAt < 180000
+      platform.action.setBadgeText({ text: ok ? '✓' : '×' })
+      platform.action.setBadgeBackgroundColor({ color: ok ? '#65FFB6' : '#FF6B6B' })
+      platform.action.setTitle({
+        title: ok ? `妙想：已备份 ${n} 条灵感到 ${r.liaisonLibraryMirrorRoot}`
+                  : '妙想：备份失败——请确认本地服务在运行',
+      })
+      setTimeout(() => {
+        platform.action.setBadgeText({ text: '' })
+        platform.action.setTitle({ title: '点击或按 Alt+Shift+D 启动妙想' })
+      }, 6000)
+    })
+    .catch(() => {
+      platform.action.setBadgeText({ text: '×' })
+      platform.action.setBadgeBackgroundColor({ color: '#FF6B6B' })
+      setTimeout(() => platform.action.setBadgeText({ text: '' }), 6000)
+    })
+}
+
+try {
+  platform.runtime.onInstalled.addListener(() => {
+    try {
+      platform.contextMenus.removeAll(() => {
+        platform.contextMenus.create({
+          id: 'liaison-mirror-now',
+          title: '立即备份灵感库到本地',
+          contexts: ['action'],
+        })
+      })
+    } catch (_) {}
+  })
+  platform.contextMenus.onClicked.addListener((info) => {
+    if (info && info.menuItemId === 'liaison-mirror-now') liaisonRunManualMirror()
+  })
+} catch (_) {}
+
+async function liaisonMirrorLibrary(lib, verified) {
+  const snapshots = lib && Array.isArray(lib.snapshots) ? lib.snapshots : []
+  if (!snapshots.length && !verified) return // 空且未验证：不碰磁盘
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 120000)
+    const resp = await fetch('http://127.0.0.1:8765/library/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshots, verified }),
+      signal: ctrl.signal,
+    })
+    clearTimeout(timer)
+    if (!resp.ok) return
+    const data = await resp.json()
+    if (data && data.ok) {
+      console.log('[liaison-mirror BG] 已落盘', data.root, '写入', data.written, '张图', data.shots, '墓碑', data.tombed)
+      platform.storage.local.set({
+        liaisonLibraryMirrorAt: Date.now(),
+        liaisonLibraryMirrorRoot: data.root,
+        liaisonLibraryMirrorCount: data.total,
+      })
+    }
+  } catch (_) {} // 桥没跑 / 超时：静默，下次写库再试
+}
 
 // ---------------------------------------------------------------------------
 // 版本更新检查（gist 广播源）

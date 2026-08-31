@@ -423,7 +423,7 @@
     /* 描述输入区：contenteditable 而非 textarea —— 组件芯片要内联在文字中间 */
     .dsp-ed{flex:0 0 auto;margin:0 var(--lz-s-md);
       padding:var(--lz-s-sm) var(--lz-s-sm);min-height:64px;max-height:150px;
-      overflow-y:auto;border-radius:var(--lz-r-md);border:1px solid var(--lz-c-line);
+      overflow-y:auto;overscroll-behavior:contain;border-radius:var(--lz-r-md);border:1px solid var(--lz-c-line);
       background:var(--lz-c-surface-raised);font:var(--lz-f-body);line-height:1.85;
       color:var(--lz-c-text);outline:none;white-space:pre-wrap;word-break:break-word;
       transition:border-color var(--lz-m-fast),background var(--lz-m-fast);}
@@ -463,7 +463,7 @@
        .dsp-add（虚线「＋ 插入组件」按钮）在更早一轮就没有使用者了，一并清掉。 */
 
     /* 组件选择 / 配置：从底部滑出的抽屉，盖住输入区 */
-    .dsp-body{flex:1 1 auto;min-height:0;overflow-y:auto;
+    .dsp-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
       padding:var(--lz-s-xs) var(--lz-s-md) var(--lz-s-md);}
     .dsp-search{flex:0 0 auto;padding:var(--lz-s-xs) var(--lz-s-md) var(--lz-s-xs);}
     .dsp-search input{width:100%;box-sizing:border-box;height:28px;padding:0 var(--lz-s-sm);
@@ -618,7 +618,7 @@
     .dsp-slash-q{color:var(--lz-c-primary);font-weight:400;}
     .dsp-slash-tip{margin-left:auto;font:var(--lz-f-small);
       color:var(--lz-c-text-disabled);}
-    .dsp-slash-list{flex:1 1 auto;min-height:120px;overflow-y:auto;padding:var(--lz-s-xs);}
+    .dsp-slash-list{flex:1 1 auto;min-height:120px;overflow-y:auto;overscroll-behavior:contain;padding:var(--lz-s-xs);}
     .dsp-slash-it{display:flex;align-items:center;gap:var(--lz-s-sm);
       padding:var(--lz-s-xs) var(--lz-s-sm);
       border-radius:var(--lz-r-sm);cursor:pointer;transition:background var(--lz-m-fast);}
@@ -666,7 +666,7 @@
     .dsp-cfg-nm{flex:1 1 auto;font:var(--lz-f-title);color:var(--lz-c-text);
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .dsp-cfg-tip{flex:0 0 auto;font:var(--lz-f-small);color:var(--lz-c-text-disabled);}
-    .dsp-cfg-bd{flex:1 1 auto;min-height:0;overflow-y:auto;
+    .dsp-cfg-bd{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
       padding:var(--lz-s-sm) var(--lz-s-md);}
     .dsp-cfg-ft{flex:0 0 auto;padding:var(--lz-s-xs) var(--lz-s-md) var(--lz-s-sm);
       display:flex;gap:var(--lz-s-sm);}
@@ -3561,7 +3561,7 @@
     let html = '<div style="padding:10px 12px;border-bottom:1px solid #2D3748;' +
       'font-weight:500;font-size:13px;color:#E2E8F0;flex-shrink:0;">语义色板</div>'
     const scrollHeight = (maxHeight || 400) - 43
-    html += '<div style="overflow-y:auto;max-height:' + scrollHeight + 'px;padding:6px;">'
+    html += '<div style="overflow-y:auto;overscroll-behavior:contain;max-height:' + scrollHeight + 'px;padding:6px;">'
 
     let any = false
     order.forEach(function (key) {
@@ -3639,7 +3639,7 @@
 
     // 滚动区域：减去标题栏高度
     const scrollHeight = (maxHeight || 400) - 43
-    html += '<div style="overflow-y:auto;max-height:' + scrollHeight + 'px;padding:6px;">'
+    html += '<div style="overflow-y:auto;overscroll-behavior:contain;max-height:' + scrollHeight + 'px;padding:6px;">'
 
     tokens.forEach(function (token) {
       let displayName = token.name

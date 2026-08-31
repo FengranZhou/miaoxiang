@@ -74,7 +74,7 @@
   .lau-empty-trash{color:#ff8f8f;border-color:rgba(255,110,110,.32);}
   .lau-empty-trash:hover{background:rgba(255,80,80,.16);border-color:rgba(255,110,110,.5);}
   .lau-empty-trash.lau-confirming{background:rgba(255,80,80,.22);color:#ffd0d0;border-color:rgba(255,110,110,.6);}
-  .lau-side{flex:0 0 200px;box-sizing:border-box;overflow:auto;display:flex;flex-direction:column;background:rgba(0,0,0,.22);padding:24px 14px;}
+  .lau-side{flex:0 0 200px;box-sizing:border-box;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;background:rgba(0,0,0,.22);padding:24px 14px;}
   .lau-side-back{display:inline-flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin-bottom:14px;font-size:13px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:none;color:#e8eaed;cursor:pointer;transition:background .12s;}
   .lau-side-back:hover{background:rgba(255,255,255,.14);}
   .lau-side-title{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:rgba(232,234,237,.4);margin:6px 6px 8px;}
@@ -98,7 +98,7 @@
   .lau-tagmenu-item:hover{background:rgba(255,255,255,.2);color:#fff;}
   .lau-tagmenu-item.danger:hover{background:rgba(255,80,80,.22);}
   .lau-tagmenu-input{width:100%;box-sizing:border-box;font-size:12px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(120,140,255,.5);color:#fff;outline:none;}
-  .lau-grid-wrap{flex:1 1 auto;overflow:auto;}
+  .lau-grid-wrap{flex:1 1 auto;overflow:auto;overscroll-behavior:contain;}
   .lau-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--lau-col-w,200px),1fr));gap:14px;padding:2px 2px 24px;align-content:start;}
 
   /* 卡片：等高，缩略图在固定高度区内居中；hover 淡入操作层 */
@@ -131,7 +131,7 @@
 
   /* 打标签下拉：已有标签可选 + 底部输入可新增 */
   .lau-tagpop{position:absolute;z-index:50;min-width:150px;max-width:220px;background:#20242c;border:1px solid rgba(255,255,255,.16);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);padding:6px;}
-  .lau-tagpop-list{max-height:160px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
+  .lau-tagpop-list{max-height:160px;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
   .lau-tagpop-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px;color:#dfe1e4;cursor:pointer;}
   .lau-tagpop-item:hover{background:rgba(120,140,255,.22);color:#fff;}
   .lau-tagpop-item.checked{color:#8fa4ff;}
@@ -842,7 +842,11 @@
         try {
           const prompt = await window.__liaisonInsp.buildPromptAsync(snap, state.ctx && state.ctx.target, mode)
           await navigator.clipboard.writeText(prompt)
-        } catch (e) { console.error('copy failed', e) }
+          if (window.__liToast) window.__liToast('复制到 CC 即可')
+        } catch (e) {
+          console.error('copy failed', e)
+          if (window.__liToast) window.__liToast('复制失败，请手选全文')
+        }
       }
     })
 
