@@ -1,3 +1,35 @@
+// 幂等守卫 + IIFE 包裹（2026-09-02 同事侧 SyntaxError 修复）
+//
+// 症状：扩展卡片报 "Identifier 'hideRootScrollbar' has already been declared"，
+// 整个 inject.js 在解析期就终止 —— 页面里的采集/存储/下载/CDP 桥全断。
+//
+// 根因：background 的重复注入守卫（state.loaded / state.injected）只活在
+// service worker 内存里。MV3 的 SW 随时会被回收，回收后 state 归零，下次点
+// 扩展图标就判定成「fresh start」，把 inject.js 二次注入进同一个页面。文件
+// 顶层的 const 声明（hideRootScrollbar 等 6 个）撞上首次注入残留的绑定，
+// SyntaxError 在解析阶段抛出 —— 注意这早于任何运行时判断，所以守卫必须让
+// 那些 const 不在顶层，光加一个 if 拦不住。
+//
+// 修法：整个文件包进 IIFE（顶层声明降级为函数作用域，重复注入不再冲突），
+// 入口再加一道 window 标记，二次注入直接空转返回。
+;(function () {
+  if (window.__liaisonInjectLoaded) {
+    // 二次注入不能只是空转：SW 误判走 fresh-start 时，这条分支是用户点图标后
+    // 唯一会创建 liaison-app 的路径。若此前已 eject（元素被移除），直接 return
+    // 会让面板再也起不来。补建元素即可 —— 桥接、监听、页面世界的脚本首次注入
+    // 时都已就位，不需要（也不能）重复挂。
+    try {
+      var _p = typeof browser === 'undefined' ? chrome : browser
+      if (!document.querySelector('liaison-app')) {
+        var _el = document.createElement('liaison-app')
+        _el.setAttribute('asset-base', _p.runtime.getURL(''))
+        document.body.prepend(_el)
+      }
+    } catch (_) {}
+    return
+  }
+  window.__liaisonInjectLoaded = true
+
 var platform = typeof browser === 'undefined'
   ? chrome
   : browser
@@ -219,3 +251,4 @@ try {
     window.postMessage({ _liaisonInspLibChanged: true }, '*')
   })
 } catch (e) {}
+})();

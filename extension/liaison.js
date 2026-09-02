@@ -1145,7 +1145,14 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
         }
       } catch (e) {
         const msg = String(e && e.message || e)
-        sendResponse({ ok: false, error: /abort/i.test(msg) ? '更新超时' : '本地服务未运行（' + msg + '）' })
+        // 区分「更新真失败」和「本地桥根本没跑」：后者是同事侧最常见的情况，
+        // 笼统报「更新失败」会让人以为新版本有问题，其实只是缺个本地服务。
+        // bridgeDown 让弹窗改说人话并给出可复制的自救命令。
+        if (/abort/i.test(msg)) {
+          sendResponse({ ok: false, error: '更新超时' })
+        } else {
+          sendResponse({ ok: false, bridgeDown: true, error: msg })
+        }
       }
     })()
     return true

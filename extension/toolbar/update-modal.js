@@ -172,6 +172,27 @@
       }
       .result.err { color: #FF6B6B; }
       .result.ok { color: #65FFB6; }
+      /* 本地桥没跑时的自救块：把命令摆出来并可一键复制，别让同事去记路径。
+         左对齐 —— 它是要被「读和照做」的内容，不同于右对齐的状态回执。 */
+      .fixit {
+        margin-top: 10px; padding: 10px 12px; text-align: left;
+        background: rgba(255,255,255,.06); border-radius: 8px;
+      }
+      .fixit p {
+        margin: 0 0 8px; color: rgba(255,255,255,.72);
+        font: 400 11px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+      }
+      .fixit-row { display: flex; align-items: center; gap: 8px; }
+      .fixit code {
+        flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
+        color: #9EE7FF; font: 400 11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+      }
+      .fixit button {
+        flex: none; padding: 4px 10px; border: 0; border-radius: 6px; cursor: pointer;
+        background: rgba(255,255,255,.14); color: rgba(255,255,255,.9);
+        font: 500 11px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+      }
+      .fixit button:hover { background: rgba(255,255,255,.22); }
     `
     root.appendChild(style)
 
@@ -255,9 +276,44 @@
         result.className = 'result err'
         result.textContent = msg
       }
+      // 本地桥没跑：这不是「更新失败」，是缺个常驻服务。报错文案换成人话，
+      // 并把安装命令摆出来可一键复制 —— 同事能自己解决，不用来回找分发者。
+      // 同事侧由安装器铺在 ~/.miaoxiang/bridge/（见 distribution/lib/sync.sh 的
+      // MX_ROOT）；~/ux-audit-bridge/ 只是作者本机的开发路径。按存在性择一，
+      // 用 if/else 而非 `A && B || C` —— 后者在中间一步失败时还会往下跑，
+      // 把真实报错淹掉。install.sh 的输出原样留在终端，方便同事截图。
+      const CMD = 'if [ -f ~/.miaoxiang/bridge/install.sh ]; then bash ~/.miaoxiang/bridge/install.sh; else bash ~/ux-audit-bridge/install.sh; fi'
+      const failBridge = () => {
+        go.disabled = false
+        go.textContent = '重试'
+        result.className = 'result err'
+        result.textContent = '本地更新服务没在运行'
+        if (overlay.querySelector('.fixit')) return
+        const box = document.createElement('div')
+        box.className = 'fixit'
+        const tip = document.createElement('p')
+        tip.textContent = '在「终端」里跑一次下面这行装好服务，再回来点「重试」：'
+        const row = document.createElement('div')
+        row.className = 'fixit-row'
+        const code = document.createElement('code')
+        code.textContent = CMD
+        const copy = document.createElement('button')
+        copy.textContent = '复制'
+        copy.addEventListener('click', () => {
+          try {
+            navigator.clipboard.writeText(CMD)
+            copy.textContent = '已复制'
+            setTimeout(() => { copy.textContent = '复制' }, 1500)
+          } catch (_) { copy.textContent = '请手选复制' }
+        })
+        row.appendChild(code); row.appendChild(copy)
+        box.appendChild(tip); box.appendChild(row)
+        result.parentNode.insertBefore(box, result.nextSibling)
+      }
       try {
         platformRef.runtime.sendMessage({ action: 'liaisonSelfUpdate' }, (r) => {
           if (platformRef.runtime.lastError) return fail('更新失败：' + platformRef.runtime.lastError.message)
+          if (r && !r.ok && r.bridgeDown) return failBridge()
           if (!r || !r.ok) return fail('更新失败：' + ((r && r.error) || '未知原因') + '。可联系分发者')
           go.textContent = '完成'
           result.className = 'result ok'
