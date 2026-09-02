@@ -383,7 +383,13 @@ const server = createServer((req, res) => {
     if (!existsSync(updater)) {
       return sendJson(res, 200, { ok: false, error: "未找到更新程序，请联系分发者重新安装" });
     }
-    execFile("/bin/bash", [updater], { timeout: 600_000 }, (err, stdout, stderr) => {
+    // MX_SKIP_BRIDGE=1：update.command 会调 bridge/install.sh，而后者开头的
+    // launchctl unload 会把「正在跑这次更新」的本进程杀掉，响应就永远回不去了
+    // （扩展侧看到的是 Failed to fetch）。跳过桥重装，桥自身的更新留给下次开机。
+    execFile("/bin/bash", [updater], {
+      timeout: 600_000,
+      env: { ...process.env, MX_SKIP_BRIDGE: "1" },
+    }, (err, stdout, stderr) => {
       const tail = String(stdout || "").trim().split("\n").pop() || "";
       if (err) {
         sendJson(res, 200, { ok: false, error: (String(stderr || "").trim().split("\n").pop()) || String(err.message || err) });

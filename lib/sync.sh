@@ -131,7 +131,21 @@ mx_download_models() {
 }
 
 mx_setup_bridge() {
-  [[ -f "$MX_ROOT/bridge/install.sh" ]] || return 0
+  # 自杀防护：更新弹窗的「立即更新」是由桥服务自己 execFile 起的 update.command，
+  # 而 bridge/install.sh 开头会 launchctl unload —— 那会把正在执行本流程的进程
+  # 当场杀掉，HTTP 响应永远回不来，扩展侧表现为 Failed to fetch（v2.3 前的
+  # 「点了立即更新就失败」正是此因）。由桥发起时置 MX_SKIP_BRIDGE=1 跳过重装：
+  # 桥的代码若真有更新，下次开机 launchd 拉起时自然生效。
+  if [[ "${MX_SKIP_BRIDGE:-0}" == "1" ]]; then
+    mx_log "→ 跳过本地桥重装（本次更新由桥服务自身发起，重装会杀掉它自己）"
+    return 0
+  fi
+  # 缺文件时也要留痕：早先这里直接 return 0（视作成功），桥没装上却全程无声，
+  # 同事侧表现为「更新弹窗一点就说本地服务未运行」，而日志里查无此事。
+  if [[ ! -f "$MX_ROOT/bridge/install.sh" ]]; then
+    mx_log "⚠ 未找到 bridge/install.sh，跳过本地桥安装（AI 深度分析/发散/一键更新将不可用）"
+    return 0
+  fi
   # bridge/install.sh 自带幂等（先卸后装）与探活；静默模式收进日志
   if bash "$MX_ROOT/bridge/install.sh" >>"$MX_LOG" 2>&1; then
     mx_log "✓ 本地桥已就绪（AI 深度分析 / 发散）"
