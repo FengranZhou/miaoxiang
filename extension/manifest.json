@@ -1,6 +1,6 @@
 {
   "name": "妙想",
-  "version": "2.1.4",
+  "version": "2.2",
   "description": "你别动，我来整",
   "manifest_version": 3,
   "icons": {
@@ -13,6 +13,7 @@
     "alarms",
     "contextMenus",
     "downloads",
+    "downloads.ui",
     "scripting",
     "storage",
     "debugger"

@@ -904,6 +904,49 @@ async function collectViaCdp(session, req) {
 
 // Screenshot bridge for Liaison Inspiration Library: content-script asks for
 // a viewport PNG/JPEG, background captures via activeTab, returns data URL.
+// ---- 参考图下载的静默化（落点收拢 + 记录清理 + UI 抑制）----------------------
+//
+// 参考图落点：收进下载目录下的专属子目录，别和用户自己下的文件混在一起。
+// 同名覆盖，所以这个目录里始终只有 1 个文件。
+const REF_DIR = '妙想参考图'
+
+// 抹掉下载列表里的记录（磁盘文件保留）。CC 仍按 search 到的路径读图。
+// 失败不影响主流程——最坏情况只是列表里多留一条记录。
+function eraseDownloadRecord (id) {
+  try {
+    platform.downloads.erase({ id }, () => { void platform.runtime.lastError })
+  } catch (e) { /* noop */ }
+}
+
+// 下载期间临时关掉下载气泡/托盘。Chrome 用 setUiOptions（需 downloads.ui 权限，
+// 权限名和老 API setShelfEnabled 的 downloads.shelf 不是一个）；Firefox 只有
+// setShelfEnabled。两者都可能因为「别的扩展也在关 UI」而报错，静默吞掉即可。
+//
+// 关掉是全局的：它同时挡住用户自己下载别的文件的气泡。所以必须保证一定会恢复——
+// 除了各失败分支显式恢复，再挂一个兜底定时器，防 service worker 在恢复前被回收
+// 或某条分支漏掉，导致用户的下载气泡被永久关掉。
+let uiRestoreTimer = null
+function setDownloadUiEnabled (enabled) {
+  try {
+    if (uiRestoreTimer) { clearTimeout(uiRestoreTimer); uiRestoreTimer = null }
+    if (typeof platform.downloads.setUiOptions === 'function') {
+      const r = platform.downloads.setUiOptions({ enabled })
+      if (r && typeof r.catch === 'function') r.catch(() => {})
+      void platform.runtime.lastError
+    } else if (typeof platform.downloads.setShelfEnabled === 'function') {
+      platform.downloads.setShelfEnabled(enabled)
+      void platform.runtime.lastError
+    }
+    if (!enabled) {
+      uiRestoreTimer = setTimeout(() => { uiRestoreTimer = null; setDownloadUiEnabled(true) }, 30000)
+    }
+  } catch (e) { /* noop */ }
+}
+
+// service worker 每次启动都把下载 UI 恢复一次：如果上个生命周期在关闭状态下被
+// 回收，用户的下载气泡会一直是关的，这里兜住。
+setDownloadUiEnabled(true)
+
 platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // 「自检」tab · 两段式短轮询：background 用扩展权限 fetch 本地服务（不受页面 CSP）。
   // start / poll 都秒回，service worker 无需长存活、不会被 30s 空闲回收。
@@ -1180,43 +1223,67 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // Download bridge: save the ref JPEG to disk and return the absolute path.
   // Lets the copied prompt reference the file by path instead of embedding a
   // ~100KB base64 heredoc that would otherwise dominate the prompt prefill.
+  //
+  // 用户体感：这个下载纯属实现细节（同名覆盖，磁盘上永远只有 1 个文件），但默认
+  // 会弹下载气泡 + 在下载列表里堆历史条目，看起来像「模仿一次就存一张图」。所以
+  // 落点收进 REF_DIR 子目录（B），下载完成后 erase 掉列表记录（A，文件保留），
+  // 并在下载期间临时关掉下载 UI（A，需要 downloads.shelf 权限）。
   if (req && req.action === 'liaisonInspDownload') {
     try {
       const safeFilename = (typeof req.filename === 'string' && /^[A-Za-z0-9._-]+\.(jpe?g|png)$/i.test(req.filename))
         ? req.filename
         : 'liaison-ref.jpg'
-      platform.downloads.download({
-        url: req.dataUrl,
-        filename: safeFilename,
-        conflictAction: 'overwrite',
-        saveAs: false
-      }, (id) => {
-        const err = platform.runtime.lastError
-        if (err || typeof id !== 'number') {
-          sendResponse({ ok: false, error: err ? err.message : 'download start failed' })
-          return
-        }
-        const onChanged = (delta) => {
-          if (delta.id !== id) return
-          if (delta.error && delta.error.current) {
-            platform.downloads.onChanged.removeListener(onChanged)
-            sendResponse({ ok: false, error: delta.error.current })
+      setDownloadUiEnabled(false)
+
+      // 走一次下载并把结果回给调用方。withDir=false 是降级路径：某些平台会拒掉
+      // 带非 ASCII 目录的 filename，那时宁可退回下载根目录，也不能让「模仿」整个
+      // 失败——子目录只是整洁度，拿到 ref 路径才是功能本身。
+      const start = (withDir) => {
+        platform.downloads.download({
+          url: req.dataUrl,
+          filename: withDir ? (REF_DIR + '/' + safeFilename) : safeFilename,
+          conflictAction: 'overwrite',
+          saveAs: false
+        }, (id) => {
+          const err = platform.runtime.lastError
+          if (err || typeof id !== 'number') {
+            if (withDir) { start(false); return }
+            setDownloadUiEnabled(true)
+            sendResponse({ ok: false, error: err ? err.message : 'download start failed' })
             return
           }
-          if (delta.state && delta.state.current === 'complete') {
-            platform.downloads.onChanged.removeListener(onChanged)
-            platform.downloads.search({ id }, (items) => {
-              if (items && items[0] && items[0].filename) {
-                sendResponse({ ok: true, path: items[0].filename })
-              } else {
-                sendResponse({ ok: false, error: 'no filename after complete' })
-              }
-            })
+          const onChanged = (delta) => {
+            if (delta.id !== id) return
+            if (delta.error && delta.error.current) {
+              platform.downloads.onChanged.removeListener(onChanged)
+              eraseDownloadRecord(id)
+              if (withDir) { start(false); return }
+              setDownloadUiEnabled(true)
+              sendResponse({ ok: false, error: delta.error.current })
+              return
+            }
+            if (delta.state && delta.state.current === 'complete') {
+              platform.downloads.onChanged.removeListener(onChanged)
+              // 顺序要紧：先 search 取到磁盘路径，再 erase 抹记录——反过来记录没了
+              // 就查不到 filename，prompt 就拿不到 ref 路径。
+              platform.downloads.search({ id }, (items) => {
+                const path = items && items[0] && items[0].filename
+                eraseDownloadRecord(id)
+                setDownloadUiEnabled(true)
+                if (path) {
+                  sendResponse({ ok: true, path })
+                } else {
+                  sendResponse({ ok: false, error: 'no filename after complete' })
+                }
+              })
+            }
           }
-        }
-        platform.downloads.onChanged.addListener(onChanged)
-      })
+          platform.downloads.onChanged.addListener(onChanged)
+        })
+      }
+      start(true)
     } catch (e) {
+      setDownloadUiEnabled(true)
       sendResponse({ ok: false, error: String(e && e.message || e) })
     }
     return true

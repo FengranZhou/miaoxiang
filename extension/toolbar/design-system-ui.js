@@ -430,7 +430,11 @@
     /* focus 走 line-strong（白描边提亮一档）而不是 primary —— 聚焦只是「光标在这」，
        不是操作按钮。薄荷绿框太抢眼，且会与真正的主操作（复制到 CC）撞语义。 */
     .dsp-ed:focus{border-color:var(--lz-c-line-strong);}
-    .dsp-ed:empty::before{content:attr(data-ph);color:var(--lz-c-text-disabled);}
+    /* placeholder 不用 :empty —— contenteditable 里把字删光后 DOM 常残留一个
+       <br> 或空文本节点，:empty 就不再成立，暗提示回不来（用户报的现象）。
+       改由 syncEditor 按「纯文本是否为空」打 data-empty，判据与 popPin.text 一致。 */
+    .dsp-ed[data-empty]::before{content:attr(data-ph);color:var(--lz-c-text-disabled);
+      pointer-events:none;}
     /* 组件芯片：不可编辑的整体，退格键一次删掉整个 */
     /* 高度钉死 28px = 页脚按钮（.dsp-foot button）同高。芯片是这个面板里
        真正被操作的对象，不该比按钮矮一截；height 显式给，否则它的高度会被
@@ -830,6 +834,14 @@
     // 挂一处就不会漏，也不会因为 renderPopover 重画而错位。
     const dn = popEl.querySelector('[data-dsp-done]')
     if (dn) dn.disabled = !hasContent(popPin)
+    syncEdPlaceholder(ed)
+  }
+
+  /** 依「纯文本是否为空」开关 placeholder；见 .dsp-ed[data-empty] 处的注释 */
+  function syncEdPlaceholder(ed) {
+    if (!ed) return
+    if (ed.textContent.replace(/[\s\u200b]/g, '') === '') ed.setAttribute('data-empty', '')
+    else ed.removeAttribute('data-empty')
   }
 
   function focusEditor() {
@@ -1352,17 +1364,15 @@
     if (!popEl || !popPin) return
     let html = ''
 
-    // 标题就是这个面板的使用说明。原来是「① 位置」+ 右下角一条「输入 / 可插入
-    // 组件」的提示，两处都在讲同一件事，还把「怎么用」放在了视线最后到的角落。
-    // 合成一句纯文字放在左上角：抬眼第一下就知道该干什么。
-    // 编号不再重复 —— 页面上的蓝色标记本身就带着 ①，面板正指着它。
+    // 标题只说「做什么」——写下你的想法。编号不再重复：页面上的蓝色标记
+    // 本身就带着 ①，面板正指着它。
     html += '<div class="dsp-head">' +
-      '<span class="dsp-title">输入"/"调用组件</span>' +
+      '<span class="dsp-title">写下你的想法</span>' +
       '<span class="dsp-x" data-dsp-close title="关闭">×</span></div>'
 
-    // placeholder 只说「写什么」，不再重复「/ 能插组件」—— 标题已经讲过一遍了
+    // 「怎么用」放进 placeholder：光标要落进来的地方，正是需要提示的时机
     html += '<div class="dsp-ed" contenteditable="true" data-dsp-ed ' +
-      'data-ph="这里要改成什么样？">' + textToHtml(popPin) + '</div>'
+      'data-ph="输入&quot;/&quot;调用组件">' + textToHtml(popPin) + '</div>'
 
     const nSaved = copyCount()
     // 「完成」= 存下这一条、关浮层、回到标记态继续标下一处。
@@ -1381,6 +1391,8 @@
       '</div>'
 
     popEl.innerHTML = html
+    // 重画不经过 input 事件，标记要在这里补上（首次打开、插入芯片后重画）
+    syncEdPlaceholder(popEl.querySelector('[data-dsp-ed]'))
     // 两层浮层都挂在 documentElement 上，不受这里的 innerHTML 重写影响，
     // 但面板尺寸可能变了，跟着重新定位一次
     if (slashEl) positionSlash()

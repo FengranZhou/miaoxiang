@@ -842,10 +842,10 @@
         try {
           const prompt = await window.__liaisonInsp.buildPromptAsync(snap, state.ctx && state.ctx.target, mode)
           await navigator.clipboard.writeText(prompt)
-          if (window.__liToast) window.__liToast('复制到 CC 即可')
+          if (window.__liToast) window.__liToast('复制到 CC 即可', el)
         } catch (e) {
           console.error('copy failed', e)
-          if (window.__liToast) window.__liToast('复制失败，请手选全文')
+          if (window.__liToast) window.__liToast('复制失败，请手选全文', el)
         }
       }
     })
