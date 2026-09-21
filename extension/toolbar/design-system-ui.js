@@ -54,6 +54,17 @@
   let GROUPS = []
   let CATALOG = []
   let TOKENS = null  // 设计令牌：{ semanticColors, fontScale, spacing, radius }
+  // TOKENS 是否来自内置兜底副本。兜底能让 UI 可用，但不是「加载成功」——
+  // poll 的存活条件靠它区分，否则 TOKENS 一被兜底填上，重试就永久停了。
+  let tokensAreFallback = false
+
+  // ==== TOKEN_FALLBACK:BEGIN (generated, do not hand-edit) ====
+  // 源头：https://raw.githubusercontent.com/FengranZhou/design-system/main/scripts/design-tokens.json
+  // 同步于：2026-09-21　｜　重新同步：node tools/sync-token-fallback.mjs
+  // ⚠️ 机器生成，勿手改 —— 手改会在下次同步时被覆盖，且失去与源头的可追溯性。
+  const TOKENS_FALLBACK = {"version":1,"generatedFrom":"xy-design-system","semanticColors":[{"name":"brand-primary","value":"#23B283","comment":"主色"},{"name":"brand-text","value":"#23B283","comment":"品牌文字"},{"name":"brand-hover","value":"#45BF92","comment":"悬浮"},{"name":"brand-pressed","value":"#158C68","comment":"点击"},{"name":"brand-disabled","value":"#6ACCA5","comment":"禁用"},{"name":"brand-bg","value":"#EBF7F1","comment":"浅背景"},{"name":"success-primary","value":"#23B283","comment":"主色"},{"name":"success-hover","value":"#45BF92","comment":"悬浮"},{"name":"success-pressed","value":"#158C68","comment":"点击"},{"name":"success-disabled","value":"#6ACCA5","comment":"禁用"},{"name":"success-bg","value":"#EBF7F1","comment":"浅背景"},{"name":"danger-primary","value":"#F53B3B","comment":"主色"},{"name":"danger-hover","value":"#FF6B66","comment":"悬浮"},{"name":"danger-pressed","value":"#CF272D","comment":"点击"},{"name":"danger-disabled","value":"#FF968F","comment":"禁用"},{"name":"danger-bg","value":"#FFF2F0","comment":"浅背景"},{"name":"warning-primary","value":"#FC7819","comment":"主色"},{"name":"warning-hover","value":"#FF9742","comment":"悬浮"},{"name":"warning-pressed","value":"#D6590B","comment":"点击"},{"name":"warning-disabled","value":"#FFB36B","comment":"禁用"},{"name":"warning-bg","value":"#FFF4E6","comment":"浅背景"},{"name":"info-primary","value":"#0077FF","comment":"主色"},{"name":"info-hover","value":"#2994FF","comment":"悬浮"},{"name":"info-pressed","value":"#005ED9","comment":"点击"},{"name":"info-disabled","value":"#52AEFF","comment":"禁用"},{"name":"info-bg","value":"#E6F6FF","comment":"浅背景"},{"name":"bg-page","value":"#F2F5F7","comment":"灰页面底"},{"name":"bg-page-white","value":"#FFFFFF","comment":"白页面底"},{"name":"bg-panel","value":"#FFFFFF","comment":"面板"},{"name":"bg-inset","value":"#F2F5F7","comment":"内嵌区域"},{"name":"bg-segment-active","value":"#FFFFFF","comment":"分段选中"},{"name":"bg-card","value":"linear-gradient(90deg, var(--iflyv-gray-1) 0%, #{$bg-card-gradient-end} 100%)","comment":"卡片渐变"},{"name":"bg-back","value":"#{$bg-back}"},{"name":"text-1","value":"#12151A","comment":"一级/标题"},{"name":"text-2","value":"#4B535C","comment":"二级/正文"},{"name":"text-3","value":"#7B838C","comment":"三级/辅助"},{"name":"text-4","value":"#A9B0B8","comment":"四级/禁用"},{"name":"text-on-dark","value":"#FFFFFF","comment":"深底文字"},{"name":"text-on-light","value":"#12151A"},{"name":"border-subtle","value":"#12151A","comment":"轻量 6%","alpha":6},{"name":"border-default","value":"#12151A","comment":"常规 10%","alpha":10},{"name":"border-strong","value":"#12151A","comment":"加重 20%","alpha":20},{"name":"border-on-dark","value":"#FFFFFF","comment":"深底描边","alpha":10},{"name":"mask-primary","value":"#12151A","comment":"遮罩","alpha":60},{"name":"mask-on-dark","value":"#FFFFFF","comment":"深底遮罩","alpha":60}],"semanticColorGroups":{"brand":[{"name":"brand-primary","value":"#23B283","comment":"主色"},{"name":"brand-text","value":"#23B283","comment":"品牌文字"},{"name":"brand-hover","value":"#45BF92","comment":"悬浮"},{"name":"brand-pressed","value":"#158C68","comment":"点击"},{"name":"brand-disabled","value":"#6ACCA5","comment":"禁用"},{"name":"brand-bg","value":"#EBF7F1","comment":"浅背景"}],"success":[{"name":"success-primary","value":"#23B283","comment":"主色"},{"name":"success-hover","value":"#45BF92","comment":"悬浮"},{"name":"success-pressed","value":"#158C68","comment":"点击"},{"name":"success-disabled","value":"#6ACCA5","comment":"禁用"},{"name":"success-bg","value":"#EBF7F1","comment":"浅背景"}],"danger":[{"name":"danger-primary","value":"#F53B3B","comment":"主色"},{"name":"danger-hover","value":"#FF6B66","comment":"悬浮"},{"name":"danger-pressed","value":"#CF272D","comment":"点击"},{"name":"danger-disabled","value":"#FF968F","comment":"禁用"},{"name":"danger-bg","value":"#FFF2F0","comment":"浅背景"}],"warning":[{"name":"warning-primary","value":"#FC7819","comment":"主色"},{"name":"warning-hover","value":"#FF9742","comment":"悬浮"},{"name":"warning-pressed","value":"#D6590B","comment":"点击"},{"name":"warning-disabled","value":"#FFB36B","comment":"禁用"},{"name":"warning-bg","value":"#FFF4E6","comment":"浅背景"}],"info":[{"name":"info-primary","value":"#0077FF","comment":"主色"},{"name":"info-hover","value":"#2994FF","comment":"悬浮"},{"name":"info-pressed","value":"#005ED9","comment":"点击"},{"name":"info-disabled","value":"#52AEFF","comment":"禁用"},{"name":"info-bg","value":"#E6F6FF","comment":"浅背景"}],"bg":[{"name":"bg-page","value":"#F2F5F7","comment":"灰页面底"},{"name":"bg-page-white","value":"#FFFFFF","comment":"白页面底"},{"name":"bg-panel","value":"#FFFFFF","comment":"面板"},{"name":"bg-inset","value":"#F2F5F7","comment":"内嵌区域"},{"name":"bg-segment-active","value":"#FFFFFF","comment":"分段选中"},{"name":"bg-card","value":"linear-gradient(90deg, var(--iflyv-gray-1) 0%, #{$bg-card-gradient-end} 100%)","comment":"卡片渐变"},{"name":"bg-back","value":"#{$bg-back}"}],"text":[{"name":"text-1","value":"#12151A","comment":"一级/标题"},{"name":"text-2","value":"#4B535C","comment":"二级/正文"},{"name":"text-3","value":"#7B838C","comment":"三级/辅助"},{"name":"text-4","value":"#A9B0B8","comment":"四级/禁用"},{"name":"text-on-dark","value":"#FFFFFF","comment":"深底文字"},{"name":"text-on-light","value":"#12151A"}],"border":[{"name":"border-subtle","value":"#12151A","comment":"轻量 6%","alpha":6},{"name":"border-default","value":"#12151A","comment":"常规 10%","alpha":10},{"name":"border-strong","value":"#12151A","comment":"加重 20%","alpha":20},{"name":"border-on-dark","value":"#FFFFFF","comment":"深底描边","alpha":10}],"mask":[{"name":"mask-primary","value":"#12151A","comment":"遮罩","alpha":60},{"name":"mask-on-dark","value":"#FFFFFF","comment":"深底遮罩","alpha":60}]},"semanticColorGroupTitles":{"brand":"主题色 Brand","success":"成功色 Success","danger":"危险色 Danger","warning":"警告色 Warning","info":"信息色 Info","text":"文本色 Text","icon":"图标色 Icon","bg":"背景色 Background","border":"描边色 Border","mask":"遮罩与滚动条 Mask / Scroller","message":"Message 描边","input":"组件桥接 Component Bridge"},"semanticColorGroupOrder":["brand","success","danger","warning","info","text","icon","bg","border","mask","message","input"],"fontScale":[{"name":"font-family-base","value":"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'"},{"name":"font-family-number","value":"\"douyinNum\""},{"name":"font-size-12","value":"0.75rem"},{"name":"font-size-13","value":"0.8125rem"},{"name":"font-size-14","value":"0.875rem"},{"name":"font-size-16","value":"1rem"},{"name":"font-size-18","value":"1.125rem"},{"name":"font-size-22","value":"1.375rem"},{"name":"font-size-26","value":"1.625rem"},{"name":"font-size-40","value":"2.5rem"},{"name":"font-weight-regular","value":"400"},{"name":"font-weight-semibold","value":"600"},{"name":"font-weight-bold","value":"700"},{"name":"font-title-page","value":"600 1.625rem / 3rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"页面标题"},{"name":"font-title-page-multiline","value":"600 1.625rem / 3.25rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"页面标题（多行）"},{"name":"font-tab-active","value":"600 1.625rem / 2.25rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"页面级选中 Tab 项"},{"name":"font-title-module","value":"600 1.125rem / 2.25rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"模块标题"},{"name":"font-title-regular","value":"600 1rem / 1.5rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"常规标题"},{"name":"font-tab-active-sub","value":"600 1.125rem / 1.75rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"模块级选中 Tab 项"},{"name":"font-tab-default","value":"400 1.125rem / 2.25rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"默认 Tab 项"},{"name":"font-title-component","value":"600 0.875rem / 1.25rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"组件标题"},{"name":"font-body-primary","value":"400 1rem / 1.5rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"常规正文"},{"name":"font-body-primary-multiline","value":"400 1rem / 2rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"常规正文（多行）"},{"name":"font-body-sub","value":"400 0.875rem / 1.25rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"次要正文"},{"name":"font-body-sub-multiline","value":"400 0.875rem / 1.75rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"次要正文（多行）"},{"name":"font-body-min","value":"400 0.75rem / 1.125rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"辅助信息"},{"name":"font-body-min-multiline","value":"400 0.75rem / 1.5rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"辅助信息（多行）"},{"name":"font-label-primary","value":"400 0.75rem / 1.125rem -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'","comment":"常规标签"},{"name":"font-number-display","value":"700 1.625rem / 2.5rem \"douyinNum\"","comment":"展示型数字"},{"name":"font-number-display-sm","value":"700 1.375rem / 2.125rem \"douyinNum\"","comment":"展示型数字"}],"spacing":[{"name":"spacing-0_5","value":"2px","scenes":["紧贴元素微调（图标与其紧邻文字的视觉对齐补偿）","数字展示字阶（number-display / -sm）与其下方说明文字之间"]},{"name":"spacing-1","value":"4px","scenes":["控件内图标与其紧邻文字之间（如按钮内 icon + 文字）","卡内通栏出血面板距卡缘的细缝（两侧与底部同取）"]},{"name":"spacing-1_5","value":"6px","scenes":["Tag / Badge 等小控件的左右内边距"]},{"name":"spacing-2","value":"8px","scenes":["列表项内子元素间距（标题与其描述、主信息与副信息；含横向的图标/标签与其同行文字）","常规标题与其下方内容之间（与「标题与其描述」同档；下方是通栏/出血块时放宽一档取 spacing-3）"]},{"name":"spacing-3","value":"12px","scenes":["模块级标题与其下方内容之间","按钮之间（水平，有底色/描边的按钮）","小卡片内边距·上下（含横幅/条状容器；左右配 spacing-4）","常规标题与其下方通栏/出血块之间（比常规内容放宽一档）"]},{"name":"spacing-4","value":"16px","scenes":["页面级标题与其下方内容之间（含 .tabs-page 充当页面标题层时）","页面级标题与页面顶部之间（含 .tabs-page 充当页面标题层时）","卡片之间（同级卡片常规间距）","栅格列间水槽","小卡片内边距·左右（含横幅/条状容器；上下配 spacing-3）","大卡片内边距·上下（左右配 spacing-5）","按钮之间（水平，无底色的文本按钮 / 纯图标按钮）","图标之间（一排图标彼此，无论是否可点）"]},{"name":"spacing-5","value":"20px","scenes":["大卡片内边距·左右（上下配 spacing-4）","面板内边距·上下（左右配 spacing-6）"]},{"name":"spacing-6","value":"24px","scenes":["表单项之间（label+控件为一组，组与组）","页面内容距页面左右及底部内边距（顶部另按「页面级标题与页面顶部之间」取 spacing-4）","面板内边距·左右（上下配 spacing-5）"]},{"name":"spacing-8","value":"32px","scenes":["模块之间（垂直，区块与区块）"]},{"name":"spacing-10","value":"40px","scenes":["页面级 Section 之间（展示型页面的大留白）"]}],"radius":[{"name":"radius-xs","value":"4px","comment":"Tag、Checkbox、Select item、Dropdown item"},{"name":"radius-sm","value":"8px","comment":"Button、Input、小卡片、Table、大多数组件默认"},{"name":"radius-md","value":"10px","comment":"大卡片"},{"name":"radius-lg","value":"12px","comment":"页面级容器、Dialog、Drawer"},{"name":"radius-full","value":"999px","comment":"胶囊按钮、全圆角 Tag"}]}
+  const TOKENS_FALLBACK_STAMP = '2026-09-21'
+  // ==== TOKEN_FALLBACK:END ====
 
   /**
    * snippet 在 JSON 里是源码字符串（函数没法 JSON 序列化），这里还原成函数。
@@ -147,11 +158,28 @@
     }
   }
 
-  /** 载入设计令牌（同 catalog 策略：先用缓存，后台拉最新） */
+  /**
+   * 载入设计令牌（同 catalog 策略：先用缓存，后台拉最新）。
+   *
+   * ⚠️ 返回值语义是「**有没有拿到真数据**」，不是「TOKENS 有没有值」：
+   *   true  = 远程或缓存的真数据已就位，可以收工
+   *   false = 没拿到真数据，调用方须继续重试
+   *           （含「已启用内置兜底」——UI 可用了，但仍要换回最新数据）
+   * 调用方（attach 里的一次性闸门）必须据此决定要不要重试 —— 曾经这里
+   * 无返回值且失败完全静默，配合那个「置位就不再重置」的 flag，
+   * 形成了一个**永久性死局**：
+   *   页面 300ms 就跑 attach → 此时 SW 可能还没冷启动完 → bridge 等 8s 超时
+   *   → resolve(null) → loadTokens 悄悄结束 → 但 flag 已置 true
+   *   → poll 后续每秒重试 attach 都被 flag 挡住，loadTokens 再也不会跑
+   *   → TOKENS 永远 null → enhanceStylePanelInputs 首行 return
+   *   → **所有 token 按钮一个都不长，且不报任何错**
+   * 表现为「时好时坏」：SW 醒着就成功、睡着就永久失败，看运气。
+   */
   async function loadTokens() {
     const cached = await bridge('kvGet', { key: 'liaison.ds.tokens' })
     if (cached) {
       TOKENS = cached
+      tokensAreFallback = false
       // 加载缓存后立即触发一次输入框增强
       enhanceStylePanelInputs()
     }
@@ -159,10 +187,44 @@
     const fresh = await fetchTokens()
     if (fresh) {
       TOKENS = fresh
+      tokensAreFallback = false   // 换回真数据，兜底标记随之解除
       bridge('kvSet', { key: 'liaison.ds.tokens', value: fresh })
       // 拉取最新数据后再触发一次
       enhanceStylePanelInputs()
+      return true
     }
+
+    // 远程没拉到：有缓存仍算可用（离线/GitHub 不通时靠它撑着）。
+    if (TOKENS) {
+      console.warn('[liaison-ds] 令牌远程拉取失败，沿用本地缓存')
+      return true
+    }
+
+    // 远程和缓存都没有 —— 最后一道防线：扩展内置副本。
+    // raw.githubusercontent.com 在国内并不稳定，同事侧最可能撞上这里；
+    // 没有这层的话表现是「一个 token 按钮都不长且不报错」，而他们
+    // 根本不会意识到本该有按钮。
+    // ⚠️ 内置副本**不写回缓存**：它是应急数据，写进去会把「暂时没网」
+    //    固化成「以后都用旧数据」，下次有网时反而拿不到新鲜的。
+    if (TOKENS_FALLBACK) {
+      TOKENS = TOKENS_FALLBACK
+      tokensAreFallback = true
+      console.warn(
+        '[liaison-ds] 远程与缓存均不可用，已启用扩展内置令牌副本' +
+        '（同步于 ' + TOKENS_FALLBACK_STAMP + '，可能已过时）。' +
+        '恢复联网后会自动取回最新版。'
+      )
+      enhanceStylePanelInputs()
+      // 返回 false：内置副本让 UI 可用，但不代表「拉取成功」——
+      // 仍要放开闸门继续重试，好在网络恢复后换回真正的最新数据。
+      return false
+    }
+
+    console.warn(
+      '[liaison-ds] 令牌加载失败（远程拉不到、无本地缓存、无内置副本），' +
+      'token 按钮本轮不会出现；将自动重试。URL: ' + TOKENS_URL
+    )
+    return false
   }
 
   /**
@@ -3102,9 +3164,15 @@
       const root = panel.shadowRoot
       if (!root) return
 
+      // 一次性闸门，但**只对成功有效**：失败必须放开 flag，
+      // 否则 poll 的每秒重试全被挡住，一次冷启动失败就是永久失败。
       if (!TOKENS && !tokensLoadTriggered) {
         tokensLoadTriggered = true
-        loadTokens()
+        loadTokens().then(function (ok) {
+          if (!ok) tokensLoadTriggered = false
+        }).catch(function () {
+          tokensLoadTriggered = false
+        })
       }
 
       if (observedRoot !== root) {
@@ -3134,9 +3202,14 @@
 
     // 面板可能在本脚本执行前就已存在（切 tab 回来等），主动探一次。
     // TOKENS 尚未到位时隔秒重试 —— loadTokens 是异步的。
+    // 存活条件不是「TOKENS 有没有值」而是「有没有拿到**真**数据」——
+    // 内置兜底会把 TOKENS 填上，若据此停止轮询，网络恢复后也永远换不回
+    // 最新令牌。兜底态下继续以更慢的节奏重试。
     const poll = function () {
       attach()
-      if (!TOKENS) setTimeout(poll, 1000)
+      if (!TOKENS || tokensAreFallback) {
+        setTimeout(poll, tokensAreFallback ? 30000 : 1000)
+      }
     }
     setTimeout(poll, 300)
     // 按钮在输入框容器内 absolute 定位，随布局走 —— 不需要任何滚动/缩放对位逻辑。
