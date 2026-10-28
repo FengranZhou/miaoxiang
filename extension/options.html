@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>妙想 · 登记</title>
+<!-- 视觉令牌与工具面板同源（toolbar/ui-tokens.js），var() 第二参数是令牌未就绪时的兜底 -->
+<script src="toolbar/ui-tokens.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px 16px;
+    background: var(--lz-c-surface, #0F1B26);
+    color: var(--lz-c-text, rgba(255,255,255,.92));
+    font: 400 13px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  }
+  .card {
+    width: 100%; max-width: 360px;
+    padding: var(--lz-s-xl, 24px);
+    background: var(--lz-c-surface-raised, rgba(255,255,255,.06));
+    border: 1px solid var(--lz-c-line, rgba(255,255,255,.12));
+    border-radius: var(--lz-r-xl, 12px);
+    box-shadow: var(--lz-sh-lg, 0 10px 34px rgba(0,0,0,.46));
+    display: flex; flex-direction: column; gap: var(--lz-s-lg, 16px);
+  }
+  .head { display: flex; align-items: center; gap: var(--lz-s-md, 12px); }
+  .head img { width: 32px; height: 32px; }
+  .head h1 { margin: 0; font: var(--lz-f-titleLg, 600 14px/1.4 sans-serif); font-size: 16px; }
+  .head p { margin: 0; color: var(--lz-c-text-sub, rgba(255,255,255,.62)); font: var(--lz-f-body, 400 12px/1.5 sans-serif); }
+
+  .field { display: flex; flex-direction: column; gap: var(--lz-s-sm, 8px); }
+  label, .label { font: var(--lz-f-bodyStrong, 500 12px/1.5 sans-serif); color: var(--lz-c-text-sub, rgba(255,255,255,.62)); }
+  input {
+    width: 100%; height: 36px; padding: 0 var(--lz-s-md, 12px);
+    background: var(--lz-c-surface-sunken, rgba(0,0,0,.24));
+    border: 1px solid var(--lz-c-line, rgba(255,255,255,.12));
+    border-radius: var(--lz-r-sm, 6px);
+    color: var(--lz-c-text, rgba(255,255,255,.92)); font: inherit; outline: none;
+    transition: border-color var(--lz-m-fast, .12s ease);
+  }
+  input::placeholder { color: var(--lz-c-text-weak, rgba(255,255,255,.42)); }
+  input:focus { border-color: var(--lz-c-primary, #65FFB6); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: var(--lz-s-sm, 8px); }
+  .chip {
+    height: 28px; padding: 0 var(--lz-s-md, 12px);
+    background: transparent; cursor: pointer;
+    border: 1px solid var(--lz-c-line, rgba(255,255,255,.12));
+    border-radius: var(--lz-r-pill, 999px);
+    color: var(--lz-c-text-sub, rgba(255,255,255,.62)); font: var(--lz-f-body, 400 12px/1.5 sans-serif);
+    transition: all var(--lz-m-fast, .12s ease);
+  }
+  .chip:hover { border-color: var(--lz-c-line-strong, rgba(255,255,255,.22)); color: var(--lz-c-text, rgba(255,255,255,.92)); }
+  .chip.on {
+    background: var(--lz-c-primary-weak, rgba(101,255,182,.16));
+    border-color: var(--lz-c-primary, #65FFB6);
+    color: var(--lz-c-primary, #65FFB6);
+  }
+  #deptCustom[hidden] { display: none; }
+
+  .btn {
+    height: 36px; width: 100%; cursor: pointer; border: 0;
+    border-radius: var(--lz-r-sm, 6px); font: var(--lz-f-title, 600 13px/1.4 sans-serif);
+    transition: background var(--lz-m-fast, .12s ease);
+  }
+  .btn-primary { background: var(--lz-c-primary, #65FFB6); color: var(--lz-c-primary-ink, #12151A); }
+  .btn-primary:hover { background: var(--lz-c-primary-hover, #7AFFC4); }
+  .btn-ghost {
+    background: transparent; color: var(--lz-c-text-sub, rgba(255,255,255,.62));
+    border: 1px solid var(--lz-c-line, rgba(255,255,255,.12));
+  }
+  .btn-ghost:hover { color: var(--lz-c-text, rgba(255,255,255,.92)); border-color: var(--lz-c-line-strong, rgba(255,255,255,.22)); }
+  .btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--lz-c-primary, #65FFB6); outline-offset: 2px; }
+
+  .error { min-height: 16px; margin: -8px 0 0; color: var(--lz-c-danger, #FF6B6B); font: var(--lz-f-small, 400 11px/1.45 sans-serif); }
+  .note { margin: 0; text-align: center; color: var(--lz-c-text-weak, rgba(255,255,255,.42)); font: var(--lz-f-small, 400 11px/1.45 sans-serif); }
+
+  .done { display: flex; flex-direction: column; gap: var(--lz-s-xs, 4px);
+    padding: var(--lz-s-md, 12px); border-radius: var(--lz-r-md, 8px);
+    background: var(--lz-c-surface-sunken, rgba(0,0,0,.24)); }
+  .done strong { font-size: 15px; font-weight: 600; }
+  .done span { color: var(--lz-c-text-sub, rgba(255,255,255,.62)); font: var(--lz-f-body, 400 12px/1.5 sans-serif); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="head">
+    <img src="icons/icon48.png" alt="">
+    <div>
+      <h1 id="title">登记一下</h1>
+      <p id="lede">用于统计小组使用情况，只需一次</p>
+    </div>
+  </div>
+
+  <section id="formView" class="card-body" style="display:flex;flex-direction:column;gap:16px">
+    <div class="field">
+      <label for="name">姓名</label>
+      <input id="name" autocomplete="name" placeholder="你的真实姓名">
+    </div>
+    <div class="field">
+      <span class="label" id="deptLabel">部门 · 体验中心</span>
+      <div class="chips" id="capsules" role="radiogroup" aria-labelledby="deptLabel"></div>
+      <input id="deptCustom" placeholder="完整部门名" hidden>
+    </div>
+    <p class="error" id="formError" role="alert"></p>
+    <button class="btn btn-primary" id="save" type="button">完成登记</button>
+  </section>
+
+  <section id="badgeView" style="display:flex;flex-direction:column;gap:16px" hidden>
+    <div class="done">
+      <strong id="badgeName"></strong>
+      <span id="badgeDept"></span>
+    </div>
+    <button class="btn btn-ghost" id="edit" type="button">修改</button>
+  </section>
+
+  <p class="note">不会上传你浏览的页面内容</p>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

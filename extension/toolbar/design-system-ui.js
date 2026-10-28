@@ -2603,6 +2603,7 @@
     if (!ok) state.shotError = '复制失败，请重试'
     else {
       // 复制成功＝这一轮改造已交付，清空标记重新开始
+      try { window.dispatchEvent(new CustomEvent('liaison-ds-copied')) } catch (_) {}   // 使用统计（inject.js 转发）
       state.pins = []
       state.editingPin = -1
       renderPins()

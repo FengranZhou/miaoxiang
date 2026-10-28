@@ -251,4 +251,16 @@ try {
     window.postMessage({ _liaisonInspLibChanged: true }, '*')
   })
 } catch (e) {}
+
+// 使用统计：交付类动作。page world 拿不到 chrome.runtime，但 DOM 事件跨世界共享，
+// 内容脚本直接监听页面上冒泡出来的事件，再转给 background 的 feishu-track 桥。
+//   checklist-copy  清单 tab「复制到 CC 并清空」（bundle 派发，composed 穿出 shadow）
+//   component-copy  组件 tab「复制到 CC」成功（design-system-ui.js 派发）
+try {
+  const track = (event) => {
+    try { platform.runtime.sendMessage({ type: 'feishu-track', event }, () => { void platform.runtime.lastError }) } catch (_) {}
+  }
+  document.addEventListener('liaison-overview-copy-prompt', () => track('checklist-copy'))
+  window.addEventListener('liaison-ds-copied', () => track('component-copy'))
+} catch (e) {}
 })();

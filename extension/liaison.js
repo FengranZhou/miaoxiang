@@ -1,3 +1,7 @@
+// 使用统计（飞书埋点）：tracker.js 自带 onInstalled / feishu-track 监听
+import { feishuTrack } from './tracker.js'
+const liaisonAuditTracked = new Set()   // audit-done 去重（按 taskId）
+
 // Swallow harmless "Could not establish connection" rejections from sendMessage
 // when no content script is present in the active tab. These are benign in this
 // extension's design and only clutter the error surface of chrome://extensions.
@@ -57,7 +61,9 @@ const withSplashGate = (tab_id, swallow, next) => {
   } catch (_) { playAndNext() }
 }
 
-const toggleIn = ({id:tab_id}) => {
+const toggleIn = (tab) => {
+  const tab_id = tab.id
+  const trackStart = () => feishuTrack('start')
   const swallow = p => { if (p && typeof p.catch === 'function') p.catch(() => {}) }
 
   // toggle out: it's currently loaded and injected
@@ -86,6 +92,7 @@ const toggleIn = ({id:tab_id}) => {
       }))
     })
     state.injected[tab_id] = true
+    trackStart()
   }
 
   // fresh start in tab
@@ -119,6 +126,7 @@ const toggleIn = ({id:tab_id}) => {
 
     state.loaded[tab_id]    = true
     state.injected[tab_id]  = true
+    trackStart()
   }
 
   platform.tabs.onUpdated.addListener(function(tabId) {
@@ -976,7 +984,9 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
           body: JSON.stringify(req.payload || {}),
         })
         if (!resp.ok) { sendResponse({ ok: false, error: '本地服务 HTTP ' + resp.status }); return }
-        sendResponse(await resp.json())
+        const data = await resp.json()
+        sendResponse(data)
+        if (data && data.ok !== false) feishuTrack('diverge')
       } catch (e) {
         sendResponse({ ok: false, error: '无法连接本地服务，请先跑 ux-audit-bridge/install.sh：' + String(e && e.message || e) })
       }
@@ -990,6 +1000,11 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
         if (!resp.ok) { sendResponse({ ok: false, error: '本地服务 HTTP ' + resp.status }); return }
         const data = await resp.json()
         sendResponse(data || { ok: false, error: '空响应' })
+        if (data && data.status === 'done' && data.result && !liaisonAuditTracked.has(req.taskId)) {
+          liaisonAuditTracked.add(req.taskId)
+          const n = Array.isArray(data.result.issues) ? data.result.issues.length : ''
+          feishuTrack('audit-done', n)
+        }
       } catch (e) {
         sendResponse({ ok: false, error: '轮询失败：' + String(e && e.message || e) })
       }
@@ -1036,9 +1051,15 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
           return true
         })
       : Promise.resolve(true)
+    let __prevCount = -1
     __guard
-      .then(() => liaisonDbSet(LIAISON_LIB_KEY, req.value))
+      .then(() => liaisonDbGet(LIAISON_LIB_KEY).catch(() => null))
+      .then(cur => {
+        __prevCount = cur && Array.isArray(cur.snapshots) ? cur.snapshots.length : 0
+        return liaisonDbSet(LIAISON_LIB_KEY, req.value)
+      })
       .then(() => {
+        if (__incomingSnaps && __incomingSnaps.length > __prevCount) feishuTrack('collect', __incomingSnaps.length)
         // 镜像备份：主库落盘成功后并集更新备份。失败只告警（主库已安全写入）。
         liaisonBackupMerge(req.value).catch(e =>
           console.warn('[liaison-insp BG] 备份更新失败（主库已写入）:', String(e && e.message || e)))
@@ -1279,6 +1300,7 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
                 setDownloadUiEnabled(true)
                 if (path) {
                   sendResponse({ ok: true, path })
+                  feishuTrack('ref-imitate')
                 } else {
                   sendResponse({ ok: false, error: 'no filename after complete' })
                 }

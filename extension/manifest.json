@@ -1,6 +1,6 @@
 {
   "name": "妙想",
-  "version": "2.4.1",
+  "version": "2.5",
   "description": "你别动，我来整",
   "manifest_version": 3,
   "icons": {
@@ -54,5 +54,6 @@
         "linux": "Alt+Shift+D"
       }
     }
-  }
+  },
+  "options_page": "options.html"
 }
