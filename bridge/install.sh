@@ -48,7 +48,11 @@ cat > "$PLIST" <<EOF
     <string>$DIR/server.mjs</string>
   </array>
   <key>EnvironmentVariables</key>
-  <dict><key>PORT</key><string>$PORT</string></dict>
+  <dict>
+    <key>PORT</key><string>$PORT</string>
+    <key>PATH</key><string>$(dirname "$NODE"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+$( [ -n "$CLAUDE" ] && echo "    <key>CLAUDE_BIN</key><string>$CLAUDE</string>" )
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>$DIR/server.log</string>

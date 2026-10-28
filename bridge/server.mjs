@@ -90,28 +90,42 @@ function buildPrompt() {
 // launchd 环境 PATH 很干净，靠 PATH 会 ENOENT，所以尽量解析出绝对路径。
 // 优先级：环境变量 CLAUDE_BIN > 常见安装位置逐个探测 > `which claude` > 回退裸 "claude"。
 const HOME = process.env.HOME || homedir();
+// 跑本服务的 node 所在目录：install.sh 用的是 `command -v node`，nvm 用户的 claude 通常就装在它旁边
+const NODE_DIR = dirname(process.execPath);
+function nvmClaudeCandidates() {
+  const root = `${HOME}/.nvm/versions/node`;
+  try { return readdirSync(root).sort().reverse().map((v) => `${root}/${v}/bin/claude`); } catch (_) { return []; }
+}
 function resolveClaudeBin() {
   if (process.env.CLAUDE_BIN && existsSync(process.env.CLAUDE_BIN)) return process.env.CLAUDE_BIN;
   const candidates = [
+    `${NODE_DIR}/claude`,
     `${HOME}/.npm-global/bin/claude`,
     `${HOME}/.local/bin/claude`,
     "/usr/local/bin/claude",
     "/opt/homebrew/bin/claude",
     `${HOME}/.bun/bin/claude`,
     `${HOME}/.volta/bin/claude`,
+    ...nvmClaudeCandidates(),
   ];
   for (const p of candidates) if (existsSync(p)) return p;
-  // 兜底：用登录 shell 解析（能拿到 nvm/asdf 等自定义路径）
+  // 兜底：用登录 shell 解析（能拿到 asdf 等自定义路径）；zshrc 可能有杂输出，只取最后一行
   try {
-    const out = execFileSync(process.env.SHELL || "/bin/zsh", ["-lic", "command -v claude"], { encoding: "utf8" }).trim();
+    const out = execFileSync(process.env.SHELL || "/bin/zsh", ["-lic", "command -v claude"], { encoding: "utf8", timeout: 10000 }).trim().split("\n").pop().trim();
     if (out && existsSync(out)) return out;
   } catch (_) {}
   return "claude"; // 最后回退，靠 PATH
 }
-const CLAUDE_BIN = resolveClaudeBin();
+// 不在启动时定死：服务先装、claude 后装的情况下，下次调用会重新解析
+let CLAUDE_BIN = resolveClaudeBin();
+function currentClaudeBin() {
+  if (CLAUDE_BIN === "claude" || !existsSync(CLAUDE_BIN)) CLAUDE_BIN = resolveClaudeBin();
+  return CLAUDE_BIN;
+}
 const CHILD_ENV = {
   ...process.env,
-  PATH: `${HOME}/.npm-global/bin:${HOME}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin${process.env.PATH ? ":" + process.env.PATH : ""}`,
+  // 带上 NODE_DIR：npm 版 claude 是 `#!/usr/bin/env node` 脚本，需要 PATH 里有 node
+  PATH: `${NODE_DIR}:${HOME}/.npm-global/bin:${HOME}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin${process.env.PATH ? ":" + process.env.PATH : ""}`,
   HOME,
 };
 
@@ -148,7 +162,7 @@ function extractJson(text) {
 function callClaude(prompt) {
   return new Promise((resolve) => {
     execFile(
-      CLAUDE_BIN,
+      currentClaudeBin(),
       ["-p", prompt],
       { maxBuffer: 20 * 1024 * 1024, timeout: 150000, cwd: BASE, env: CHILD_ENV },
       (err, stdout, stderr) => {
