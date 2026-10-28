@@ -85,6 +85,15 @@
   const mount = (s) => {
     window.__liaisonUpdateModalOpen = true
 
+    // 弹窗前先退回浏览态：「调整」等模式会在捕获阶段吞掉页面点击，弹窗按钮点不动。
+    // 退出必须在主世界走 browse 路径，见 toolbar/exit-to-browse.js。
+    try {
+      const sc = document.createElement('script')
+      sc.src = platformRef.runtime.getURL('toolbar/exit-to-browse.js')
+      sc.onload = sc.onerror = () => sc.remove()
+      ;(document.head || document.documentElement).appendChild(sc)
+    } catch (_) {}
+
     // gist 内容是自家维护的，但拼进 innerHTML 的值仍一律过消毒
     const esc = (v) => String(v).replace(/[<>&"']/g, '')
     let current = ''

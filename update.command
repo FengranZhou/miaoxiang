@@ -11,8 +11,10 @@ MX_ROOT="$HOME/.miaoxiang"
 [[ "${1:-}" == "--silent" ]] && export MX_SILENT=1
 
 BEFORE=$(git -C "$MX_ROOT" rev-parse HEAD 2>/dev/null || echo none)
+# 拉取失败必须以非 0 退出：弹窗「立即更新」经本地桥调用本脚本，桥按退出码判成败。
+# 以前这里 exit 0，拉不下来也会显示「更新完成」，同事停在旧版却以为更新了。
 git -C "$MX_ROOT" pull --ff-only >/dev/null 2>&1 || {
-  [[ "${MX_SILENT:-0}" == "1" ]] || echo "⚠ 拉取失败（网络？），保持现有版本"; exit 0; }
+  echo "拉取新版本失败，请检查网络能否访问 GitHub" >&2; exit 1; }
 AFTER=$(git -C "$MX_ROOT" rev-parse HEAD)
 
 # shellcheck source=/dev/null
