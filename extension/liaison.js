@@ -1658,7 +1658,8 @@ async function liaisonEnsureShareAlarm() {
   } catch (_) {}
 }
 platform.runtime.onStartup.addListener(() => { liaisonEnsureShareAlarm(); setTimeout(liaisonShareSync, 30000) })
-platform.runtime.onInstalled.addListener(() => { liaisonEnsureShareAlarm() })
+// 更新 / 安装后不等 10 分钟的首个定时：15s 后（给桥留出被重启的时间）先同步一轮
+platform.runtime.onInstalled.addListener(() => { liaisonEnsureShareAlarm(); setTimeout(liaisonShareSync, 15000) })
 platform.alarms.onAlarm.addListener((a) => {
   if (a.name === 'liaison-share-sync') liaisonShareSync()
 })

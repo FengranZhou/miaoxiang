@@ -1187,6 +1187,10 @@
     if (host && typeof host.renderPanel === 'function') host.renderPanel()
   }, true)
 
+  // 打开妙想（本模块随工具注入）即同步一轮共享库：侧边小面板不经过全屏的 mount，
+  // 不在这里触发的话，只开小面板的人要等 10 分钟定时才能看到同事的条目
+  shareCall('liaisonShareSyncNow', 210000)
+
   // 启动时拿一次当前作者；拿到后发库变化信号，让小面板 / 全屏面板按作者重绘
   shareCall('liaisonGetAuthor').then((au) => {
     if (!au || !au.ok || !au.author) return

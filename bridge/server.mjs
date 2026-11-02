@@ -16,8 +16,7 @@ import { createServer } from "node:http";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, readdirSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFile, execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { execFile, execFileSync } from "node:child_process";
 import { homedir, tmpdir, userInfo } from "node:os";
 import { readAuthor, shareSync, listManifest, readItems, compressShot, DEFAULT_ROOT } from "./library-share.mjs";
 
@@ -238,33 +237,6 @@ async function runAudit(req) {
   } finally {
     if (shotPath) { try { unlinkSync(shotPath); } catch (_) {} }
   }
-}
-
-// 桥自身代码的指纹（本目录下的 .mjs / .md）：判断一次更新是否改动了桥
-function bridgeCodeHash() {
-  const h = createHash("sha1");
-  try {
-    for (const f of readdirSync(BASE).sort()) {
-      if (!/\.(mjs|md)$/.test(f)) continue;
-      h.update(f);
-      h.update(readFileSync(join(BASE, f)));
-    }
-  } catch (_) {}
-  return h.digest("hex");
-}
-
-// 让 launchd 重启本服务。只在由 launchd 托管时做（手动 node server.mjs 起的不动）。
-// 延迟 1.5s：先让刚发出的 HTTP 响应送达扩展。launchctl 放进独立进程组并脱离，
-// 本进程被 launchd 杀掉时不会连带杀掉它。
-function scheduleSelfRestart() {
-  if (process.env.XPC_SERVICE_NAME !== "com.uxaudit.bridge") return;
-  setTimeout(() => {
-    try {
-      const uid = typeof process.getuid === "function" ? process.getuid() : "";
-      spawn("/bin/launchctl", ["kickstart", "-k", `gui/${uid}/com.uxaudit.bridge`], { detached: true, stdio: "ignore" }).unref();
-      log("桥代码已更新，重启服务加载新版本");
-    } catch (_) {}
-  }, 1500);
 }
 
 function sendJson(res, code, obj) {
@@ -508,10 +480,8 @@ const server = createServer((req, res) => {
     }
     // MX_SKIP_BRIDGE=1：update.command 会调 bridge/install.sh，而后者开头的
     // launchctl unload 会把「正在跑这次更新」的本进程杀掉，响应就永远回不去了
-    // （扩展侧看到的是 Failed to fetch）。所以更新过程中跳过桥重装，改为：
-    // 响应发出后，若这次更新改了桥自身的代码，再让 launchd 重启本服务加载新代码
-    // ——否则新版本依赖桥的功能（如团队共享库）要等下次开机才生效。
-    const bridgeBefore = bridgeCodeHash();
+    // （扩展侧看到的是 Failed to fetch）。所以更新过程中跳过桥重装；桥的重启由
+    // sync.sh 在更新结束后延迟触发（见 distribution/lib/sync.sh 的 mx_setup_bridge）。
     execFile("/bin/bash", [updater], {
       timeout: 600_000,
       env: { ...process.env, MX_SKIP_BRIDGE: "1" },
@@ -521,7 +491,6 @@ const server = createServer((req, res) => {
         sendJson(res, 200, { ok: false, error: (String(stderr || "").trim().split("\n").pop()) || String(err.message || err) });
       } else {
         sendJson(res, 200, { ok: true, message: tail || "已是最新版本" });
-        if (bridgeCodeHash() !== bridgeBefore) scheduleSelfRestart();
       }
     });
     return;

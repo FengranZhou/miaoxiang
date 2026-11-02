@@ -137,7 +137,18 @@ mx_setup_bridge() {
   # 「点了立即更新就失败」正是此因）。由桥发起时置 MX_SKIP_BRIDGE=1 跳过重装：
   # 桥的代码若真有更新，下次开机 launchd 拉起时自然生效。
   if [[ "${MX_SKIP_BRIDGE:-0}" == "1" ]]; then
-    mx_log "→ 跳过本地桥重装（本次更新由桥服务自身发起，重装会杀掉它自己）"
+    # 不重装，但也不能一直跑旧代码：否则新版本依赖桥的功能（如团队共享库）要等
+    # 下次开机才生效（v2.7→2.8 实际踩到：扩展已是 2.8，桥还是 2.7，共享静默不工作）。
+    # 做法：放一个脱离本进程组的延迟任务，等本次更新结束、桥把响应发回扩展后，
+    # 让 launchd 重启桥。放在 sync.sh 而不是 server.mjs 里，是因为执行更新的往往
+    # 是旧版桥（它没有新逻辑），而 sync.sh 在 git pull 之后才被加载，总是新版。
+    # stdio 必须全部重定向：否则执行更新的 node 会等这个子进程的管道关闭，
+    # 响应被拖到重启之后、永远回不去。
+    mx_log "→ 本次更新由本地桥自身发起：更新结束后自动重启本地桥加载新版本"
+    local uid; uid="$(id -u)"
+    /usr/bin/perl -e 'use POSIX qw(setsid); setsid(); sleep 5; exec "/bin/launchctl", "kickstart", "-k", "gui/$ARGV[0]/com.uxaudit.bridge"' "$uid" \
+      </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null || true
     return 0
   fi
   # 缺文件时也要留痕：早先这里直接 return 0（视作成功），桥没装上却全程无声，
