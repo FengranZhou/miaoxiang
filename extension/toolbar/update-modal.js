@@ -11,10 +11,13 @@
 //
 // 本文件自己写两个门闸 key：
 //   liaisonUpdateModalLastShownDate  当天已弹过（YYYY-MM-DD，先写后弹，跨 tab 抢占）
+//   liaisonUpdateModalLastShownFloor 当天弹的是哪条门槛线（同一天又抬了门槛线时允许再弹）
 //   liaisonUpdateModalDismissedFloor 用户点「跳过此版本」静音的门槛线
 //
-// 打扰频率三道闸：低于门槛线不弹（background 算）、每天最多一次、跳过后
-// 直到下个大版本抬高门槛线才再弹。绝大多数注入走到判定就静默退出。
+// 打扰频率三道闸：低于门槛线不弹（background 算）、同一门槛线每天最多一次、
+// 跳过后直到下个大版本抬高门槛线才再弹。绝大多数注入走到判定就静默退出。
+// 「同一门槛线」而非「每天一次」：v2.8→2.8.1 同日连发时，看过 2.8 弹窗的人当天
+// 收不到 2.8.1 的修复弹窗。旧记录没有门槛线字段 → 视为不同门槛线，允许再弹。
 //
 // 样式取值对齐 toolbar/ui-tokens.js（那份挂在 page world，这里够不着，
 // 只能抄值——改令牌时记得两处同步）。独立 shadow root，不受宿主页样式污染。
@@ -46,7 +49,9 @@
     if (s.liaisonUpdateModalDismissedFloor &&
         s.liaisonUpdateModalDismissedFloor === s.liaisonUpdateNotifyFloor)
       return { show: false, reason: 'dismissed' }
-    if (s.liaisonUpdateModalLastShownDate === today) return { show: false, reason: 'shown-today' }
+    if (s.liaisonUpdateModalLastShownDate === today &&
+        s.liaisonUpdateModalLastShownFloor === s.liaisonUpdateNotifyFloor)
+      return { show: false, reason: 'shown-today' }
     return { show: true, reason: 'show' }
   }
   window.__liaisonUpdateDecide = decide
@@ -58,6 +63,7 @@
         'liaisonUpdateAvailable', 'liaisonUpdateModalEligible', 'liaisonUpdateLatest',
         'liaisonUpdateNotifyFloor', 'liaisonUpdateNotes', 'liaisonUpdateDownloadUrl',
         'liaisonUpdateModalDismissedFloor', 'liaisonUpdateModalLastShownDate',
+        'liaisonUpdateModalLastShownFloor',
       ])
     } catch (_) { return }
 
@@ -77,7 +83,12 @@
     }
 
     // 抢到展示资格：先写日期再弹，并发 tab 的第二个读到即跳过
-    try { await platformRef.storage.local.set({ liaisonUpdateModalLastShownDate: today }) } catch (_) {}
+    try {
+      await platformRef.storage.local.set({
+        liaisonUpdateModalLastShownDate: today,
+        liaisonUpdateModalLastShownFloor: s.liaisonUpdateNotifyFloor || '',
+      })
+    } catch (_) {}
 
     mount(s)
   }
