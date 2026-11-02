@@ -14,6 +14,9 @@ try {
   ;(document.head || document.documentElement).appendChild(s)
 } catch (_) {}
 
+// 用户反馈弹窗挂在 body 上（toolbar/feedback.js），不在 liaison-app 子树里
+document.querySelectorAll('liaison-feedback-modal').forEach(n => n.remove())
+
 document.querySelectorAll('liaison-app')
   .forEach(node => {
     node.animate(

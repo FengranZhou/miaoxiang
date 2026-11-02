@@ -1,5 +1,5 @@
 // 使用统计（飞书埋点）：tracker.js 自带 onInstalled / feishu-track 监听
-import { feishuTrack } from './tracker.js'
+import { feishuTrack, feishuFeedback } from './tracker.js'
 const liaisonAuditTracked = new Set()   // audit-done 去重（按 taskId）
 
 // Swallow harmless "Could not establish connection" rejections from sendMessage
@@ -121,6 +121,12 @@ const toggleIn = (tab) => {
       swallow(platform.scripting.executeScript({
         target: {tabId: tab_id},
         files: ['toolbar/update-modal.js'],
+      }))
+      // 用户反馈弹窗：只挂监听，等工具条「…」菜单派发 liaison-feedback-open。
+      // 隔离世界随页面存活，切出再切回不必重注
+      swallow(platform.scripting.executeScript({
+        target: {tabId: tab_id},
+        files: ['toolbar/feedback.js'],
       }))
     })
 
@@ -1059,6 +1065,13 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
         sendResponse({ ok: false, error: '无法连接本地自检服务，请先跑 ux-audit-bridge/install.sh 安装启动：' + String(e && e.message || e) })
       }
     })()
+    return true
+  }
+  // 用户反馈（toolbar/feedback.js）：上报到飞书，回执只代表请求已发出
+  if (req && req.action === 'liaisonFeedbackSubmit') {
+    const text = String(req.text || '').trim().slice(0, 2000)
+    if (!text) { sendResponse({ ok: false }); return }
+    feishuFeedback(text).then(ok => sendResponse({ ok }))
     return true
   }
   // 「发散」：把截图 + 提示词交给本地桥，由它落盘并驱动 Variant。

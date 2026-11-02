@@ -9,13 +9,18 @@ set -uo pipefail
 MX_ROOT="$HOME/.miaoxiang"
 [[ -d "$MX_ROOT/.git" ]] || { echo "✗ 未找到 ${MX_ROOT}（先跑 install.command）"; exit 1; }
 [[ "${1:-}" == "--silent" ]] && export MX_SILENT=1
+# 双击运行时打进度：拉取/同步全程静默要一两分钟，同事会以为没反应。
+# 只用 stdout —— 本地桥取 stdout 最后一行当结果，进度行在前不影响。
+say() { [[ "${MX_SILENT:-0}" == "1" ]] || echo "$*"; }
 
+say "正在检查新版本…"
 BEFORE=$(git -C "$MX_ROOT" rev-parse HEAD 2>/dev/null || echo none)
 # 拉取失败必须以非 0 退出：弹窗「立即更新」经本地桥调用本脚本，桥按退出码判成败。
 # 以前这里 exit 0，拉不下来也会显示「更新完成」，同事停在旧版却以为更新了。
 git -C "$MX_ROOT" pull --ff-only >/dev/null 2>&1 || {
   echo "拉取新版本失败，请检查网络能否访问 GitHub" >&2; exit 1; }
 AFTER=$(git -C "$MX_ROOT" rev-parse HEAD)
+say "正在同步，约需一两分钟，请勿关闭窗口…"
 
 # shellcheck source=/dev/null
 source "$MX_ROOT/lib/sync.sh"
