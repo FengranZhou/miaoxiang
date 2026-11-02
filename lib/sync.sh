@@ -177,6 +177,18 @@ PYEOF
   mx_log "✓ CLAUDE 使用须知已写入 ~/.claude/CLAUDE.md（miaoxiang 标记块）"
 }
 
+# 团队共享灵感库：把包里的远端地址 + 令牌放到本地桥读取的位置。
+# 每次都覆盖——作者换令牌 / 换远端后发版即可下发。包里没有就跳过（= 不启用共享，
+# 本地库照常可用）。作者身份 author.json 不在包里，由本地桥在本机首次生成。
+mx_setup_share() {
+  local src="$MX_ROOT/share" dst="$HOME/Library/Application Support/miaoxiang"
+  [[ -f "$src/share.json" && -s "$src/gitee-token" ]] || return 0
+  mkdir -p "$dst"
+  cp "$src/share.json" "$dst/share.json"
+  install -m 600 "$src/gitee-token" "$dst/gitee-token"
+  mx_log "✓ 团队共享灵感库已启用"
+}
+
 # 受管标记：只在 ~/.miaoxiang/extension 里生成，不入 git。扩展启动时读它判断
 # 自己是不是「会被自动更新的那一份」；下载文件夹里的副本没有此文件 → 扩展告警。
 mx_write_install_tag() {
@@ -188,6 +200,7 @@ mx_write_install_tag() {
 miaoxiang_sync_all() {
   mkdir -p "$MX_ROOT"; touch "$MX_LOG"
   mx_write_install_tag
+  mx_setup_share
   mx_sync_skills
   mx_setup_bridge
   mx_setup_anystyle_env

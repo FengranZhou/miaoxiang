@@ -14,10 +14,12 @@
  */
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFile, execFileSync } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
+import { execFile, execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { homedir, tmpdir, userInfo } from "node:os";
+import { readAuthor, shareSync, listManifest, readItems, compressShot, DEFAULT_ROOT } from "./library-share.mjs";
 
 const BASE = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8765);
@@ -238,6 +240,33 @@ async function runAudit(req) {
   }
 }
 
+// 桥自身代码的指纹（本目录下的 .mjs / .md）：判断一次更新是否改动了桥
+function bridgeCodeHash() {
+  const h = createHash("sha1");
+  try {
+    for (const f of readdirSync(BASE).sort()) {
+      if (!/\.(mjs|md)$/.test(f)) continue;
+      h.update(f);
+      h.update(readFileSync(join(BASE, f)));
+    }
+  } catch (_) {}
+  return h.digest("hex");
+}
+
+// 让 launchd 重启本服务。只在由 launchd 托管时做（手动 node server.mjs 起的不动）。
+// 延迟 1.5s：先让刚发出的 HTTP 响应送达扩展。launchctl 放进独立进程组并脱离，
+// 本进程被 launchd 杀掉时不会连带杀掉它。
+function scheduleSelfRestart() {
+  if (process.env.XPC_SERVICE_NAME !== "com.uxaudit.bridge") return;
+  setTimeout(() => {
+    try {
+      const uid = typeof process.getuid === "function" ? process.getuid() : "";
+      spawn("/bin/launchctl", ["kickstart", "-k", `gui/${uid}/com.uxaudit.bridge`], { detached: true, stdio: "ignore" }).unref();
+      log("桥代码已更新，重启服务加载新版本");
+    } catch (_) {}
+  }, 1500);
+}
+
 function sendJson(res, code, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(code, {
@@ -309,6 +338,68 @@ const server = createServer((req, res) => {
   //   ~/妙想灵感库/snapshots/<id>.jpg    截图（从 thumbnailUrl 的 dataURL 拆出）
   //   ~/妙想灵感库/tombstones/<id>.json  删除墓碑（软删除，为多人同步预留）
   // ==========================================================================
+  // ==========================================================================
+  // 作者身份：采集库条目的「谁上传的」。整台机器一个 ID——同一个人开着多个
+  // Chrome（平时用的 + 按图生自动化 profile）各自的扩展存储互相独立，只有
+  // 放在磁盘上、由本桥统一读写，才能让它们认成同一个人。
+  //
+  // 落在 ~/Library/Application Support/miaoxiang/ 而不是 ~/.miaoxiang：后者是
+  // 安装器管理的目录，install.command 在残缺安装时会整个 rm -rf 掉。
+  // 显示名：扩展传来的登记名优先；没登记就用 macOS 用户名兜底。
+  //
+  //   GET  /author          读取（不存在则生成）
+  //   POST /author {name}   更新显示名（扩展里有飞书登记名时）
+  // ==========================================================================
+  if (req.url === "/author" && (req.method === "GET" || req.method === "POST")) {
+    let raw = "";
+    req.on("data", (c) => { raw += c; if (raw.length > 10_000) req.destroy(); });
+    req.on("end", () => {
+      try {
+        let body = {};
+        if (req.method === "POST") { try { body = JSON.parse(raw || "{}"); } catch (_) {} }
+        const author = readAuthor({ name: body.name });
+        sendJson(res, 200, { ok: true, id: author.id, name: author.name || "" });
+      } catch (e) {
+        sendJson(res, 200, { ok: false, error: String(e && e.message || e) });
+      }
+    });
+    return;
+  }
+
+  // ==========================================================================
+  // 团队共享库（详见 library-share.mjs）。未配置 share.json 时安静返回 notConfigured。
+  //   POST /library/share-sync        commit → fetch → rebase → push
+  //   GET  /library/manifest          全部条目的 id/作者/指纹 + 带作者的墓碑
+  //   POST /library/items {ids}       按 id 取完整条目（截图还原成 dataURL）
+  // root 参数仅供自测指向临时目录。
+  // ==========================================================================
+  if (req.method === "POST" && req.url === "/library/share-sync") {
+    let raw = "";
+    req.on("data", (c) => { raw += c; if (raw.length > 10_000) req.destroy(); });
+    req.on("end", async () => {
+      let body = {};
+      try { body = JSON.parse(raw || "{}"); } catch (_) {}
+      sendJson(res, 200, await shareSync(body.root || DEFAULT_ROOT));
+    });
+    return;
+  }
+  if (req.method === "GET" && req.url.startsWith("/library/manifest")) {
+    const root = new URL(req.url, "http://x").searchParams.get("root") || DEFAULT_ROOT;
+    sendJson(res, 200, { ok: true, ...listManifest(root) });
+    return;
+  }
+  if (req.method === "POST" && req.url === "/library/items") {
+    let raw = "";
+    req.on("data", (c) => { raw += c; if (raw.length > 1_000_000) req.destroy(); });
+    req.on("end", () => {
+      let body = {};
+      try { body = JSON.parse(raw || "{}"); } catch (_) {}
+      const ids = Array.isArray(body.ids) ? body.ids.slice(0, 100) : [];
+      sendJson(res, 200, { ok: true, items: readItems(body.root || DEFAULT_ROOT, ids) });
+    });
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/library/sync") {
     let raw = "";
     req.on("data", (c) => { raw += c; if (raw.length > 200_000_000) req.destroy(); });
@@ -323,19 +414,34 @@ const server = createServer((req, res) => {
         mkdirSync(snapDir, { recursive: true });
         mkdirSync(tombDir, { recursive: true });
 
-        const snaps = Array.isArray(payload.snapshots) ? payload.snapshots : [];
-        let written = 0, shots = 0, skipped = 0;
+        const me = readAuthor();
+        // 只写作者是自己的条目：别人的条目在扩展里是共享库拉下来的只读副本，
+        // 回写会让本机反复改写别人的文件、在 git 里制造无意义的冲突。
+        const isMine = (s) => !s.author || !s.author.id || s.author.id === me.id;
+        const snaps = (Array.isArray(payload.snapshots) ? payload.snapshots : []).filter((s) => s && isMine(s));
+        const safeId = (id) => typeof id === "string" && /^[\w-]{1,80}$/.test(id);
+        let written = 0, shots = 0, skipped = 0, healed = 0;
         for (const s of snaps) {
-          if (!s || !s.id) continue;
+          if (!s || !safeId(s.id)) continue;
+          // 库里活着的条目，若磁盘留有墓碑，说明那是误判（如另一 Chrome 实例按差集
+          // 推断删除留下的）——以活条目为准，清掉墓碑。
+          const staleTomb = join(tombDir, `${s.id}.json`);
+          if (existsSync(staleTomb)) { try { unlinkSync(staleTomb); healed++; } catch (_) {} }
           const meta = { ...s };
           // 截图另存为图片文件，元数据里只留文件名——JSON 保持小而可读
           const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/i.exec(String(s.thumbnailUrl || ""));
           if (m) {
             const ext = m[1].toLowerCase() === "jpeg" ? "jpg" : m[1].toLowerCase();
-            const shotFile = `${s.id}.${ext}`;
-            const shotPath = join(snapDir, shotFile);
-            if (!existsSync(shotPath)) {
+            let shotFile = `${s.id}.${ext}`;
+            const jpgFile = `${s.id}.jpg`;
+            if (existsSync(join(snapDir, shotFile))) {
+              // 已落过盘
+            } else if (existsSync(join(snapDir, jpgFile))) {
+              shotFile = jpgFile; // 之前落盘时 png/webp 已被压成 jpg
+            } else {
+              const shotPath = join(snapDir, shotFile);
               writeFileSync(shotPath, Buffer.from(m[2], "base64"));
+              shotFile = basename(compressShot(shotPath));
               shots++;
             }
             meta.thumbnailFile = shotFile;
@@ -349,29 +455,32 @@ const server = createServer((req, res) => {
           written++;
         }
 
-        // 墓碑：库里已消失、但磁盘还有的条目 → 记一条删除记录，并移走文件。
-        // 软删除而非直接抹掉，是为了将来多人同步时「删除」能正确传播、
-        // 不被别人的旧数据复活。
+        // 墓碑：只认扩展显式上报的「彻底删除」（purgedIds），记一条删除记录并移走文件。
+        // 不再按「磁盘有、库里没有」的差集推断删除——多个 Chrome 实例（如按图生的
+        // 自动化 profile）共用这个目录时，差集会把别的实例的条目全判成已删（2026-10
+        // 实际发生过，69 条镜像被误删）。软删除而非直接抹掉，是为将来多人同步时
+        // 「删除」能正确传播、不被别人的旧数据复活。
         let tombed = 0;
         const alive = new Set(snaps.map((s) => s && s.id).filter(Boolean));
-        if (payload.verified === true) { // 只有源自一次成功全量读取的同步才敢判定删除
-          for (const f of readdirSync(snapDir)) {
-            if (!f.endsWith(".json")) continue;
-            const id = f.slice(0, -5);
-            if (alive.has(id)) continue;
-            const tombPath = join(tombDir, `${id}.json`);
-            if (!existsSync(tombPath)) {
-              writeFileSync(tombPath, JSON.stringify({ id, deletedAt: Date.now() }, null, 2));
-              tombed++;
-            }
-            try { unlinkSync(join(snapDir, f)); } catch (_) {}
-            for (const ext of ["jpg", "png", "webp"]) {
-              const p = join(snapDir, `${id}.${ext}`);
-              if (existsSync(p)) { try { unlinkSync(p); } catch (_) {} }
-            }
+        const purged = Array.isArray(payload.purgedIds) ? payload.purgedIds : [];
+        for (const id of purged) {
+          if (!safeId(id) || alive.has(id)) continue;
+          // 只有作者本人能删：磁盘上这条若属于别人，忽略这次删除
+          try {
+            const onDisk = JSON.parse(readFileSync(join(snapDir, `${id}.json`), "utf8"));
+            if (!isMine(onDisk)) continue;
+          } catch (_) {}
+          const tombPath = join(tombDir, `${id}.json`);
+          if (!existsSync(tombPath)) {
+            writeFileSync(tombPath, JSON.stringify({ id, author: me.id, deletedAt: Date.now() }, null, 2));
+            tombed++;
+          }
+          for (const ext of ["json", "jpg", "png", "webp"]) {
+            const p = join(snapDir, `${id}.${ext}`);
+            if (existsSync(p)) { try { unlinkSync(p); } catch (_) {} }
           }
         }
-        sendJson(res, 200, { ok: true, root, written, shots, skipped, tombed, total: snaps.length });
+        sendJson(res, 200, { ok: true, root, written, shots, skipped, tombed, healed, total: snaps.length });
       } catch (e) {
         sendJson(res, 200, { ok: false, error: String(e && e.message || e) });
       }
@@ -399,7 +508,10 @@ const server = createServer((req, res) => {
     }
     // MX_SKIP_BRIDGE=1：update.command 会调 bridge/install.sh，而后者开头的
     // launchctl unload 会把「正在跑这次更新」的本进程杀掉，响应就永远回不去了
-    // （扩展侧看到的是 Failed to fetch）。跳过桥重装，桥自身的更新留给下次开机。
+    // （扩展侧看到的是 Failed to fetch）。所以更新过程中跳过桥重装，改为：
+    // 响应发出后，若这次更新改了桥自身的代码，再让 launchd 重启本服务加载新代码
+    // ——否则新版本依赖桥的功能（如团队共享库）要等下次开机才生效。
+    const bridgeBefore = bridgeCodeHash();
     execFile("/bin/bash", [updater], {
       timeout: 600_000,
       env: { ...process.env, MX_SKIP_BRIDGE: "1" },
@@ -409,6 +521,7 @@ const server = createServer((req, res) => {
         sendJson(res, 200, { ok: false, error: (String(stderr || "").trim().split("\n").pop()) || String(err.message || err) });
       } else {
         sendJson(res, 200, { ok: true, message: tail || "已是最新版本" });
+        if (bridgeCodeHash() !== bridgeBefore) scheduleSelfRestart();
       }
     });
     return;

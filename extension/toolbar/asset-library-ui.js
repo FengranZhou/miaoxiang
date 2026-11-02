@@ -36,7 +36,8 @@
     snapshots: [],   // 未删除的
     trash: [],       // 回收站（deleted）
     query: '',
-    view: 'all',     // 'all' | 'untagged' | 'trash' | {tag:'xxx'}
+    view: 'all',     // 'all' | 'mine' | 'untagged' | 'trash' | {tag:'xxx'}
+    me: null,        // 当前作者 { id, aliases }（团队共享库）；拿不到时一律当作自己的
     composing: false, // 中文输入法组合中
     colW: readColW(), // 卡片列宽下限（px），受右下角滑块控制，存 localStorage
     tagOrders: {},    // 每标签自定义顺序 { tag: [id,...] }，标签视图拖拽排序用
@@ -155,6 +156,8 @@
   .lau-src{position:absolute;top:8px;right:8px;z-index:3;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(20,22,28,.55);color:rgba(255,255,255,.72);backdrop-filter:blur(4px);opacity:0;transition:opacity .18s,background .12s,color .12s;text-decoration:none;pointer-events:none;}
   .lau-card:hover .lau-src,.lau-card.lau-card-pinned .lau-src{opacity:1;pointer-events:auto;}
   .lau-src:hover{background:rgba(34,197,94,.85);color:#fff;}
+  .lau-author{font-size:11px;line-height:1.4;color:rgba(232,234,237,.6);margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lau-note-ro{display:block;font-size:12px;line-height:1.4;padding:6px 8px;margin:0 0 8px;border-radius:7px;background:rgba(255,255,255,.05);color:#e8eaed;max-height:80px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
   /* 拖拽排序（仅「全部」视图 + 无搜索时启用）*/
   .lau-grid.lau-reorderable{position:relative;}
   .lau-grid.lau-reorderable .lau-thumb-box,.lau-grid.lau-reorderable .lau-thumb-fallback{cursor:grab;}
@@ -195,11 +198,56 @@
     })
   }
 
+  // ---- 团队共享库：作者判断 ----
+  // 别人的条目只能看和应用（模仿/复刻），不能改标签、备注或删除。
+  function isMine(s) {
+    const me = state.me
+    if (!me || !me.id) return true
+    const a = s && s.author
+    if (!a || !a.id) return true // 无作者 = 本机产生的
+    return a.id === me.id || (me.aliases || []).includes(a.id)
+  }
+
+  // 作者显示名：没登记飞书的人没有名字，用「同事·ID 前 4 位」区分，不猜名字
+  function authorLabel(s) {
+    const a = (s && s.author) || {}
+    if (a.name) return a.name
+    return a.id ? '同事·' + String(a.id).replace(/^local-/, '').slice(0, 4) : '同事'
+  }
+
+  // 经 inject.js 的内容脚本中转调 background（本模块在 page world，拿不到 chrome.runtime）
+  let bridgeSeq = 0
+  function shareCall(msg, timeoutMs, value) {
+    return new Promise((resolve) => {
+      const id = 'lau-share-' + Date.now() + '-' + (++bridgeSeq)
+      const timer = setTimeout(() => { window.removeEventListener('message', onMsg); resolve(null) }, timeoutMs || 10000)
+      function onMsg(e) {
+        const d = e.data
+        if (e.source !== window || !d || d._liaisonInspBridgeReply !== true || d.id !== id) return
+        window.removeEventListener('message', onMsg)
+        clearTimeout(timer)
+        resolve(d.ok ? d.result : null)
+      }
+      window.addEventListener('message', onMsg)
+      window.postMessage({ _liaisonInspBridge: true, id, action: 'share', payload: { msg, value } }, '*')
+    })
+  }
+
+  async function reloadData() {
+    if (!state.root || !window.__liaisonInsp) return
+    try {
+      state.snapshots = await window.__liaisonInsp.list()
+      state.trash = window.__liaisonInsp.listTrash ? await window.__liaisonInsp.listTrash() : []
+    } catch (_) { return }
+    refreshSide(); refreshGrid()
+  }
+
   function filtered() {
     const q = state.query.trim().toLowerCase()
     // 基础集合按视图取
     let base
     if (state.view === 'trash') base = state.trash
+    else if (state.view === 'mine') base = state.snapshots.filter(isMine)
     else if (state.view === 'untagged') base = state.snapshots.filter((s) => !(s.tags && s.tags.length))
     else if (state.view && state.view.tag) {
       base = state.snapshots.filter((s) => (s.tags || []).includes(state.view.tag))
@@ -229,20 +277,29 @@
     const thumb = s.thumbnailUrl
       ? `<div class="lau-thumb-box"${drag}><img class="lau-thumb" src="${esc(s.thumbnailUrl)}" alt="" referrerpolicy="no-referrer" draggable="false" onerror="this.parentNode.classList.add('lau-thumb-fallback');this.remove()" /></div>`
       : `<div class="lau-thumb-fallback"${drag}>${esc(tag)}</div>`
-    const chips = (s.tags || []).map((t) =>
-      `<span class="lau-chip">${esc(t)}<button data-lau-untag="${esc(s.id)}" data-lau-tagname="${esc(t)}" title="移除">×</button></span>`
+    const mine = isMine(s)
+    const chips = (s.tags || []).map((t) => mine
+      ? `<span class="lau-chip">${esc(t)}<button data-lau-untag="${esc(s.id)}" data-lau-tagname="${esc(t)}" title="移除">×</button></span>`
+      : `<span class="lau-chip">${esc(t)}</span>`
     ).join('')
     const inTrash = state.view === 'trash'
-    const overlay = inTrash
+    const copyBtns = `
+          <button class="lau-btn lau-btn-primary" data-lau-copy="${esc(s.id)}" data-lau-mode="imitate" title="复制「自适应设计」prompt 到 CC——以参考为基准，按目标场景做必要调整">模仿</button>
+          <button class="lau-btn lau-btn-ghost" data-lau-copy="${esc(s.id)}" data-lau-mode="replica" title="复制「完全复刻」prompt 到 CC——1:1 照抄参考，不做自适应发挥">复刻</button>`
+    const overlay = !mine && !inTrash
+      ? `<div class="lau-author" title="来自团队共享库">来自 ${esc(authorLabel(s))}</div>
+        ${chips ? `<div class="lau-card-tags">${chips}</div>` : ''}
+        ${s.note ? `<div class="lau-note-ro">${esc(s.note)}</div>` : ''}
+        <div class="lau-card-actions">${copyBtns}
+        </div>`
+      : inTrash
       ? `<div class="lau-card-actions">
           <button class="lau-btn lau-btn-primary" data-lau-restore="${esc(s.id)}">恢复</button>
           <button class="lau-btn lau-btn-ghost" data-lau-purge="${esc(s.id)}">彻底删除</button>
         </div>`
       : `<div class="lau-card-tags" data-lau-tagbar="${esc(s.id)}">${chips}<span class="lau-tag-add" data-lau-addtag="${esc(s.id)}">+ 标签</span></div>
         <textarea class="lau-note" data-lau-note="${esc(s.id)}" rows="1" placeholder="添加备注…">${esc(s.note || '')}</textarea>
-        <div class="lau-card-actions">
-          <button class="lau-btn lau-btn-primary" data-lau-copy="${esc(s.id)}" data-lau-mode="imitate" title="复制「自适应设计」prompt 到 CC——以参考为基准，按目标场景做必要调整">模仿</button>
-          <button class="lau-btn lau-btn-ghost" data-lau-copy="${esc(s.id)}" data-lau-mode="replica" title="复制「完全复刻」prompt 到 CC——1:1 照抄参考，不做自适应发挥">复刻</button>
+        <div class="lau-card-actions">${copyBtns}
           <button class="lau-btn lau-btn-ghost" data-lau-del="${esc(s.id)}">删除</button>
         </div>`
     const srcUrl = s.source && s.source.url ? String(s.source.url) : ''
@@ -381,6 +438,10 @@
       <div class="lau-tag-item ${isView('all') ? 'active' : ''}" data-lau-view="all">
         <span>全部</span><span class="lau-tag-count">${snaps.length}</span>
       </div>
+      ${snaps.some((s) => !isMine(s)) || isView('mine') ? `
+      <div class="lau-tag-item ${isView('mine') ? 'active' : ''}" data-lau-view="mine" title="仅看自己上传的">
+        <span>仅看我的</span><span class="lau-tag-count">${snaps.filter(isMine).length}</span>
+      </div>` : ''}
       <div class="lau-tag-item ${isView('untagged') ? 'active' : ''}" data-lau-view="untagged">
         <span>未标记</span><span class="lau-tag-count">${untaggedCount}</span>
       </div>
@@ -534,6 +595,9 @@
     root.querySelectorAll('[data-lau-view]').forEach((el) => {
       el.onclick = () => {
         state.view = el.getAttribute('data-lau-view')
+        // 与侧边小面板的「仅看我的」共用一个开关：只有「全部 / 仅看我的」两个视图
+        // 在小面板里有对应，标签 / 未标记 / 回收站不改动开关
+        if (state.view === 'mine' || state.view === 'all') setOnlyMine(state.view === 'mine')
         refreshSide(); refreshGrid()
       }
     })
@@ -1059,13 +1123,84 @@
     openPop = { el: pop, onDoc }
   }
 
+  // 库变化（共享库导入 / 其它标签页写入）时刷新。延迟一拍：让 bundle 先更新它的缓存，
+  // 否则 list() 可能还拿到旧数据。
+  let libChangedTimer = null
+  window.addEventListener('message', (e) => {
+    if (e.source !== window || !e.data || e.data._liaisonInspLibChanged !== true || !state.root) return
+    if (libChangedTimer) clearTimeout(libChangedTimer)
+    libChangedTimer = setTimeout(() => { libChangedTimer = null; reloadData() }, 400)
+  })
+
+  // ---- 团队共享库：侧边小面板（bundle 内 renderInspirationPanel）的接入点 ----
+  // 小面板是 bundle 核心组件的方法，不便整体搬出；这里集中放判断与筛选逻辑，
+  // bundle 只在卡片模板 / 头部 / 空状态处调用，事件绑定一律不动 bundle：
+  // 「仅看我的」按钮的点击走下方 window 捕获阶段的委托监听。
+  // 「仅看我的」开关存扩展全局（chrome.storage.local，经 inject.js 读写），跨网站记住。
+  // 模板渲染是同步的，所以内存里留一份缓存：启动时从全局读一次，切换时先改缓存再落盘。
+  let onlyMineCache = false
+  function onlyMine() { return onlyMineCache }
+  function setOnlyMine(on) {
+    onlyMineCache = !!on
+    shareCall('setOnlyMine', 5000, onlyMineCache)
+  }
+  function applyOnlyMine(on) {
+    if (on === onlyMineCache) return
+    onlyMineCache = on
+    if (state.root && (state.view === 'all' || state.view === 'mine')) {
+      state.view = on ? 'mine' : 'all'
+      refreshSide(); refreshGrid()
+    }
+    window.postMessage({ _liaisonInspLibChanged: true }, '*') // 让小面板重绘
+  }
+  window.addEventListener('message', (e) => {
+    if (e.source !== window || !e.data || e.data._liaisonOnlyMineChanged !== true) return
+    applyOnlyMine(e.data.value === true)
+  })
+  shareCall('getOnlyMine').then((r) => { if (r && r.ok) applyOnlyMine(r.value === true) })
+  window.__liaisonShareUI = {
+    isMine,
+    authorLabel,
+    onlyMine,
+    filterSmall(list) {
+      const arr = Array.isArray(list) ? list : []
+      return onlyMine() ? arr.filter(isMine) : arr
+    },
+    // 库里没有同事的条目、且没开筛选时不显示按钮——没开共享的用户界面零变化
+    smallToggleHtml(list) {
+      const arr = Array.isArray(list) ? list : []
+      const on = onlyMine()
+      if (!on && !arr.some((s) => !isMine(s))) return ''
+      const bg = on ? 'rgba(101,255,182,.16)' : 'rgba(255,255,255,.06)'
+      const fg = on ? '#65FFB6' : '#e8eaed'
+      return `<button type="button" data-insp-onlymine aria-pressed="${on}" title="仅看自己上传的" style="margin-left:auto;border:none;background:${bg};color:${fg};height:30px;border-radius:8px;cursor:pointer;font-size:13px;line-height:1;display:inline-flex;align-items:center;box-sizing:border-box;padding:0 10px;white-space:nowrap;">仅看我的</button>`
+    },
+  }
+  window.addEventListener('click', (e) => {
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : []
+    const btn = path.find((n) => n && n.nodeType === 1 && n.hasAttribute && n.hasAttribute('data-insp-onlymine'))
+    if (!btn) return
+    e.preventDefault()
+    e.stopPropagation()
+    setOnlyMine(!onlyMine())
+    const host = btn.getRootNode && btn.getRootNode().host
+    if (host && typeof host.renderPanel === 'function') host.renderPanel()
+  }, true)
+
+  // 启动时拿一次当前作者；拿到后发库变化信号，让小面板 / 全屏面板按作者重绘
+  shareCall('liaisonGetAuthor').then((au) => {
+    if (!au || !au.ok || !au.author) return
+    state.me = { id: au.author.id, aliases: au.aliases || [] }
+    window.postMessage({ _liaisonInspLibChanged: true }, '*')
+  })
+
   // ---- 对外接口 ----
   window.__liaisonAssetUI = {
     async mount(rootEl, ctx) {
       state.root = rootEl
       state.ctx = ctx || {}
       state.query = ''
-      state.view = 'all'
+      state.view = onlyMine() ? 'mine' : 'all' // 继承小面板的「仅看我的」
       state.enterAnim = true   // 进全屏首次出卡片时播 Z 字型错峰渐显
       injectCss(rootEl)
       // 先用进全屏时传入的内存缓存立即渲染一帧，避免全屏铺开后、异步数据到达前的空白窗口。
@@ -1089,8 +1224,13 @@
           if (gw) state.colW = gw
         }
       } catch (e) { if (!Array.isArray(state.snapshots)) { state.snapshots = []; state.trash = []; state.tagOrders = {} } }
+      // 当前作者：决定哪些卡片可编辑、侧栏是否出现「仅看我的」
+      const au = await shareCall('liaisonGetAuthor')
+      if (au && au.ok && au.author) state.me = { id: au.author.id, aliases: au.aliases || [] }
       // 若容器仍是本次挂载的（未被 unmount 换掉），用最新数据重渲染补齐
       if (state.root === rootEl) renderShell()
+      // 打开即同步一轮团队共享库；有导入时 background 会广播库变化，下方监听负责刷新
+      shareCall('liaisonShareSyncNow', 210000)
     },
     unmount() {
       closeTagPopover()

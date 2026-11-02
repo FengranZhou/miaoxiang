@@ -197,6 +197,93 @@ function liaisonDbSet(key, value) {
 }
 
 // ---------------------------------------------------------------------------
+// 采集库作者身份（「谁上传的」，供「仅看自己上传的」与将来团队共享库使用）。
+//
+// 真源是本地桥的 /author（磁盘上整台机器一个 ID，多个 Chrome profile 共用）。
+// 不依赖飞书登记：登记过只是拿登记名当显示名。桥没跑时先发一个本地临时 ID，
+// 等桥可用、拿到真 ID 后，把临时 ID 记进别名表，补作者时统一改写成真 ID。
+//
+// 补作者规则：没有 author 的条目一定是本机产生的（采集 / 旧数据 / 导入），记到
+// 自己名下；已带别人 author 的条目原样保留。
+// ---------------------------------------------------------------------------
+let liaisonAuthorCache = null
+let liaisonAuthorLastTry = 0 // 桥不可用时限流：读写库都会走这里，不能每次都等 3s 超时
+
+async function liaisonGetAuthor() {
+  if (liaisonAuthorCache && !liaisonAuthorCache.local) return liaisonAuthorCache
+  if (liaisonAuthorCache && Date.now() - liaisonAuthorLastTry < 60000) return liaisonAuthorCache
+  liaisonAuthorLastTry = Date.now()
+  const st = await platform.storage.local.get(['liaisonAuthor', 'liaisonAuthorAliases', 'identity'])
+  const cached = st && st.liaisonAuthor && st.liaisonAuthor.id ? st.liaisonAuthor : null
+  const regName = st && st.identity && st.identity.name ? String(st.identity.name) : ''
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 3000)
+    const resp = await fetch('http://127.0.0.1:8765/author', regName
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: regName }), signal: ctrl.signal }
+      : { signal: ctrl.signal })
+    clearTimeout(timer)
+    const data = resp.ok ? await resp.json() : null
+    if (data && data.ok && data.id) {
+      const author = { id: data.id, name: data.name || regName || '' }
+      const aliases = Array.isArray(st.liaisonAuthorAliases) ? st.liaisonAuthorAliases : []
+      if (cached && cached.id !== author.id && !aliases.includes(cached.id)) aliases.push(cached.id)
+      await platform.storage.local.set({ liaisonAuthor: author, liaisonAuthorAliases: aliases })
+      liaisonAuthorCache = author
+      return author
+    }
+  } catch (_) {} // 桥没跑 / 超时：走下方本地兜底
+  const local = cached || { id: 'local-' + crypto.randomUUID(), name: regName, local: true }
+  if (!cached) await platform.storage.local.set({ liaisonAuthor: local })
+  liaisonAuthorCache = local
+  return local
+}
+
+// 原地补作者并返回同一对象。拿不到身份时原样放行——补作者是旁路，绝不阻断读写。
+async function liaisonStampAuthor(lib) {
+  if (!lib || !Array.isArray(lib.snapshots)) return lib
+  try {
+    const author = await liaisonGetAuthor()
+    const st = await platform.storage.local.get('liaisonAuthorAliases')
+    const aliases = new Set(st && Array.isArray(st.liaisonAuthorAliases) ? st.liaisonAuthorAliases : [])
+    for (const s of lib.snapshots) {
+      if (!s || typeof s !== 'object') continue
+      const a = s.author
+      if (!a || !a.id || aliases.has(a.id) || (a.id === author.id && a.name !== author.name)) {
+        s.author = { id: author.id, name: author.name }
+      }
+    }
+  } catch (_) {}
+  return lib
+}
+
+// 跨标签页同步：采集库写入成功后广播给其它标签页刷新缓存。
+// 主通道：往 chrome.storage.local 写一个「版本信号」（只是个自增戳，不是整库）。
+//   storage.onChanged 对所有已注入内容脚本的页面可靠广播，不依赖点对点连接建立，
+//   比 tabs.sendMessage 稳（后者对未激活/跨源页面常报 no receiver）。
+// 兜底通道：仍对各 tab 发一次 tabs.sendMessage（对已激活页能即时送达）。
+// originTabId：发起写入的标签页（它自己的缓存已是最新，不用通知）；后台自己写时传 null。
+function liaisonBroadcastLibChanged(originTabId) {
+  try {
+    const signal = { t: Date.now(), r: Math.random(), origin: originTabId == null ? null : originTabId }
+    platform.storage.local.set({ liaisonInspLibVersion: signal }, () => {
+      if (platform.runtime.lastError) console.warn('[liaison-sync BG] storage signal err', platform.runtime.lastError.message)
+    })
+  } catch (e) { console.warn('[liaison-sync BG] storage signal throw', e) }
+  try {
+    platform.tabs.query({}, (tabs) => {
+      if (platform.runtime.lastError) return
+      for (const t of tabs || []) {
+        if (!t || t.id == null || t.id === originTabId) continue
+        try {
+          platform.tabs.sendMessage(t.id, { action: 'liaisonInspLibChanged' }, () => { void platform.runtime.lastError })
+        } catch (e) {}
+      }
+    })
+  } catch (e) {}
+}
+
+// ---------------------------------------------------------------------------
 // 采集库镜像备份（意外丢失的补救层）。
 //
 // 每次主库写入成功后，把新值与备份按 snapshot.id 做并集写入同库的独立 key：
@@ -1028,6 +1115,7 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // IndexedDB-backed library get (with one-time migration from chrome.storage).
   if (req && req.action === 'liaisonInspDbGet') {
     liaisonMigrateFromLocal()
+      .then(liaisonStampAuthor)
       .then(value => sendResponse({ ok: true, value }))
       .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }))
     return true
@@ -1052,11 +1140,13 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
         })
       : Promise.resolve(true)
     let __prevCount = -1
+    let __purgedIds = []
     __guard
       .then(() => liaisonDbGet(LIAISON_LIB_KEY).catch(() => null))
       .then(cur => {
         __prevCount = cur && Array.isArray(cur.snapshots) ? cur.snapshots.length : 0
-        return liaisonDbSet(LIAISON_LIB_KEY, req.value)
+        __purgedIds = liaisonDiffPurged(cur, req.value)
+        return liaisonStampAuthor(req.value).then(v => liaisonDbSet(LIAISON_LIB_KEY, v))
       })
       .then(() => {
         if (__incomingSnaps && __incomingSnaps.length > __prevCount) feishuTrack('collect', __incomingSnaps.length)
@@ -1065,33 +1155,25 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
           console.warn('[liaison-insp BG] 备份更新失败（主库已写入）:', String(e && e.message || e)))
         // 本地落地：把库镜像成磁盘文件（~/妙想灵感库），让数据不再只活在浏览器里。
         // 防抖 + 失败静默：这是旁路增强，绝不能拖累或阻断主库写入。
-        liaisonScheduleLibraryMirror(req.value, __verified)
+        liaisonScheduleLibraryMirror(req.value, __purgedIds)
         sendResponse({ ok: true })
-        // 跨标签页同步：写入成功后广播给其它标签页刷新采集库缓存。
-        // 主通道：往 chrome.storage.local 写一个「版本信号」（只是个自增戳，不是整库）。
-        //   storage.onChanged 对所有已注入内容脚本的页面可靠广播，不依赖点对点连接建立，
-        //   比 tabs.sendMessage 稳（后者对未激活/跨源页面常报 no receiver）。
-        // 兜底通道：仍对各 tab 发一次 tabs.sendMessage（对已激活页能即时送达）。
-        try {
-          const originTabId = sender && sender.tab && sender.tab.id
-          const signal = { t: Date.now(), r: Math.random(), origin: originTabId == null ? null : originTabId }
-          platform.storage.local.set({ liaisonInspLibVersion: signal }, () => {
-            if (platform.runtime.lastError) console.warn('[liaison-sync BG] storage signal err', platform.runtime.lastError.message)
-          })
-        } catch (e) { console.warn('[liaison-sync BG] storage signal throw', e) }
-        try {
-          const originTabId = sender && sender.tab && sender.tab.id
-          platform.tabs.query({}, (tabs) => {
-            if (platform.runtime.lastError) return
-            for (const t of tabs || []) {
-              if (!t || t.id == null || t.id === originTabId) continue
-              try {
-                platform.tabs.sendMessage(t.id, { action: 'liaisonInspLibChanged' }, () => { void platform.runtime.lastError })
-              } catch (e) {}
-            }
-          })
-        } catch (e) {}
+        liaisonBroadcastLibChanged(sender && sender.tab && sender.tab.id)
       })
+      .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }))
+    return true
+  }
+  // 面板手动触发一轮共享同步（打开面板 / 点刷新时）。
+  if (req && req.action === 'liaisonShareSyncNow') {
+    liaisonShareSync().then(r => sendResponse(r || { ok: false })).catch(e => sendResponse({ ok: false, error: String(e) }))
+    return true
+  }
+  // 当前作者（面板「仅看自己上传的」用）：返回真 ID + 历史别名。
+  if (req && req.action === 'liaisonGetAuthor') {
+    liaisonGetAuthor()
+      .then(author => platform.storage.local.get('liaisonAuthorAliases').then(st => sendResponse({
+        ok: true, author,
+        aliases: st && Array.isArray(st.liaisonAuthorAliases) ? st.liaisonAuthorAliases : [],
+      })))
       .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }))
     return true
   }
@@ -1133,7 +1215,8 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // （本文件是 ES module），别再往那条路上走。
   if (req && req.action === 'liaisonMirrorNow') {
     liaisonDbGet(LIAISON_LIB_KEY)
-      .then(lib => liaisonMirrorLibrary(lib || { snapshots: [] }, true))
+      .then(lib => liaisonStampAuthor(lib || { snapshots: [] }))
+      .then(lib => liaisonMirrorLibrary(lib))
       .then(() => platform.storage.local.get(['liaisonLibraryMirrorRoot', 'liaisonLibraryMirrorCount']))
       .then(r => sendResponse({ ok: true, root: r && r.liaisonLibraryMirrorRoot, count: r && r.liaisonLibraryMirrorCount }))
       .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }))
@@ -1331,16 +1414,32 @@ platform.runtime.onMessage.addListener((req, sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 let liaisonMirrorTimer = null
 let liaisonMirrorPending = null
+// 防抖窗口内的多次彻底删除要累积，不能只留最后一次写库的 diff
+const liaisonMirrorPurged = new Set()
 
-function liaisonScheduleLibraryMirror(lib, verified) {
-  liaisonMirrorPending = { lib, verified: verified === true }
+// 用户「彻底删除」的唯一判据：上一版里在回收站（deleted）、新一版里消失的条目。
+// 删除路径只有回收站里的「彻底删除 / 清空回收站」两条，都先软删再移除；
+// 其它原因消失的条目（导入覆盖、超上限截断、写少了的 bug）一律不当删除，
+// 磁盘镜像保留它们。
+function liaisonDiffPurged(prev, next) {
+  const prevSnaps = prev && Array.isArray(prev.snapshots) ? prev.snapshots : []
+  const nextSnaps = next && Array.isArray(next.snapshots) ? next.snapshots : []
+  const nextIds = new Set(nextSnaps.map(s => s && s.id).filter(Boolean))
+  return prevSnaps.filter(s => s && s.id && s.deleted && !nextIds.has(s.id)).map(s => s.id)
+}
+
+function liaisonScheduleLibraryMirror(lib, purgedIds) {
+  liaisonMirrorPending = lib
+  for (const id of purgedIds || []) liaisonMirrorPurged.add(id)
   if (liaisonMirrorTimer) clearTimeout(liaisonMirrorTimer)
   liaisonMirrorTimer = setTimeout(() => {
     liaisonMirrorTimer = null
     const job = liaisonMirrorPending
     liaisonMirrorPending = null
-    if (!job || !job.lib) return
-    liaisonMirrorLibrary(job.lib, job.verified).catch(() => {})
+    const purged = Array.from(liaisonMirrorPurged)
+    liaisonMirrorPurged.clear()
+    if (!job) return
+    liaisonMirrorLibrary(job, purged).catch(() => {})
   }, 5000)
 }
 
@@ -1357,7 +1456,7 @@ async function liaisonMirrorOnStartup() {
         .then(lib => {
           const n = lib && Array.isArray(lib.snapshots) ? lib.snapshots.length : 0
           if (!n) return // 空库不写盘，避免在磁盘上留下无意义的空目录
-          return liaisonMirrorLibrary(lib, true)
+          return liaisonStampAuthor(lib).then(liaisonMirrorLibrary)
         })
         .catch(() => {})
     }, 20000)
@@ -1374,7 +1473,7 @@ function liaisonRunManualMirror() {
       const n = lib && Array.isArray(lib.snapshots) ? lib.snapshots.length : 0
       platform.action.setBadgeText({ text: '···' })
       platform.action.setBadgeBackgroundColor({ color: '#4D9FFF' })
-      return liaisonMirrorLibrary(lib || { snapshots: [] }, true).then(() => n)
+      return liaisonStampAuthor(lib || { snapshots: [] }).then(liaisonMirrorLibrary).then(() => n)
     })
     .then(async (n) => {
       const r = await platform.storage.local.get(['liaisonLibraryMirrorRoot', 'liaisonLibraryMirrorAt'])
@@ -1414,16 +1513,19 @@ try {
   })
 } catch (_) {}
 
-async function liaisonMirrorLibrary(lib, verified) {
+// 只写不推断删除：删除只随 purgedIds 显式上报（见 liaisonDiffPurged）。
+// 启动兜底 / 手动备份不带 purgedIds，因此永远不会删磁盘上的任何条目。
+async function liaisonMirrorLibrary(lib, purgedIds) {
   const snapshots = lib && Array.isArray(lib.snapshots) ? lib.snapshots : []
-  if (!snapshots.length && !verified) return // 空且未验证：不碰磁盘
+  const purged = Array.isArray(purgedIds) ? purgedIds : []
+  if (!snapshots.length && !purged.length) return // 无可写也无可删：不碰磁盘
   try {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 120000)
     const resp = await fetch('http://127.0.0.1:8765/library/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ snapshots, verified }),
+      body: JSON.stringify({ snapshots, purgedIds: purged }),
       signal: ctrl.signal,
     })
     clearTimeout(timer)
@@ -1436,9 +1538,130 @@ async function liaisonMirrorLibrary(lib, verified) {
         liaisonLibraryMirrorRoot: data.root,
         liaisonLibraryMirrorCount: data.total,
       })
+      liaisonScheduleShareSync()
     }
   } catch (_) {} // 桥没跑 / 超时：静默，下次写库再试
 }
+
+// ---------------------------------------------------------------------------
+// 团队共享库同步（桥侧实现见 ux-audit-bridge/library-share.mjs）
+//
+// 一轮 = 桥做 git 同步（推自己的、拉别人的）→ 读磁盘清单 → 把别人的新条目 /
+// 更新拉进 IndexedDB、按作者墓碑移除别人删掉的条目。
+// 未配置共享（桥返回 notConfigured）或桥没跑时整轮静默跳过——本地库照常可用。
+//
+// 别人的条目在本机是只读副本：带 __shareHash（磁盘内容指纹，判断要不要重拉），
+// 桥落盘时按作者过滤，不会回写。
+// 触发：浏览器启动、每 10 分钟、自己落盘之后（防抖）、面板手动触发。
+// ---------------------------------------------------------------------------
+const LIAISON_BRIDGE = 'http://127.0.0.1:8765'
+let liaisonShareRunning = null
+let liaisonShareTimer = null
+
+async function liaisonBridgeJson(path, body, timeoutMs) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 15000)
+  try {
+    const resp = await fetch(LIAISON_BRIDGE + path, body === undefined
+      ? { signal: ctrl.signal }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal })
+    return resp.ok ? await resp.json() : null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function liaisonScheduleShareSync() {
+  if (liaisonShareTimer) clearTimeout(liaisonShareTimer)
+  liaisonShareTimer = setTimeout(() => { liaisonShareTimer = null; liaisonShareSync() }, 20000)
+}
+
+// 同一时刻只跑一轮；并发触发共享同一个 promise
+function liaisonShareSync() {
+  if (!liaisonShareRunning) {
+    liaisonShareRunning = liaisonShareSyncOnce()
+      .catch(e => ({ ok: false, error: String(e && e.message || e) }))
+      .finally(() => { liaisonShareRunning = null })
+  }
+  return liaisonShareRunning
+}
+
+async function liaisonShareSyncOnce() {
+  const sync = await liaisonBridgeJson('/library/share-sync', {}, 200000).catch(() => null)
+  if (!sync || sync.notConfigured) return sync || { ok: false, bridgeDown: true }
+  if (!sync.ok) console.warn('[liaison-share BG] git 同步失败（仍按本地磁盘导入）:', sync.error)
+  const mf = await liaisonBridgeJson('/library/manifest').catch(() => null)
+  if (!mf || !mf.ok) return { ok: false, error: 'manifest failed' }
+  const author = await liaisonGetAuthor()
+  // 拿不到真 ID 时不导入：否则会把自己在别的 Chrome 里的条目误当成别人的
+  if (!author || author.local) return { ok: false, error: 'author not ready' }
+
+  const deadByTomb = new Map(mf.tombstones.map(t => [t.id, t.author]))
+  const isOthers = (s) => !!(s && s.author && s.author.id && s.author.id !== author.id)
+  const isDead = (id, authorId) => deadByTomb.get(id) === authorId
+  const disk = new Map(mf.items.map(m => [m.id, m]))
+
+  // 第一次读：只用来算要拉哪些（拉取慢，不能拿着这份旧数据去写）
+  const first = (await liaisonMigrateFromLocal()) || { snapshots: [] }
+  const firstById = new Map((first.snapshots || []).filter(Boolean).map(s => [s.id, s]))
+  const need = mf.items.filter(m => {
+    if (!m.author || m.author === author.id || m.deleted || isDead(m.id, m.author)) return false
+    const cur = firstById.get(m.id)
+    if (!cur) return true
+    return isOthers(cur) && cur.__shareHash !== m.h
+  }).map(m => m.id)
+
+  const fetched = []
+  for (let i = 0; i < need.length; i += 40) {
+    const r = await liaisonBridgeJson('/library/items', { ids: need.slice(i, i + 40) }, 60000).catch(() => null)
+    for (const it of (r && r.items) || []) {
+      if (!isOthers(it)) continue // 防御：只收别人的
+      it.__shareHash = disk.get(it.id) && disk.get(it.id).h
+      fetched.push(it)
+    }
+  }
+
+  // 第二次读紧贴写入：把并发窗口压到最小，避免覆盖掉这期间的新采集
+  const lib = (await liaisonMigrateFromLocal()) || { snapshots: [] }
+  const snaps = Array.isArray(lib.snapshots) ? lib.snapshots : []
+  let removed = 0, updated = 0
+  const kept = snaps.filter(s => {
+    if (!isOthers(s)) return true
+    const d = disk.get(s.id)
+    if (isDead(s.id, s.author.id) || (d && d.deleted)) { removed++; return false }
+    return true
+  })
+  const idx = new Map(kept.map((s, i) => [s && s.id, i]))
+  const added = []
+  for (const it of fetched) {
+    if (idx.has(it.id)) {
+      if (isOthers(kept[idx.get(it.id)])) { kept[idx.get(it.id)] = it; updated++ }
+    } else {
+      added.push(it)
+    }
+  }
+  added.sort((a, b) => (b.capturedAt || 0) - (a.capturedAt || 0))
+  if (!removed && !updated && !added.length) return { ok: true, sync, added: 0, updated: 0, removed: 0 }
+
+  const next = Object.assign({}, lib, { snapshots: added.concat(kept) })
+  await liaisonDbSet(LIAISON_LIB_KEY, next)
+  liaisonBackupMerge(next).catch(() => {})
+  liaisonBroadcastLibChanged(null)
+  console.log('[liaison-share BG] 共享库导入', { added: added.length, updated, removed })
+  return { ok: true, sync, added: added.length, updated, removed }
+}
+
+async function liaisonEnsureShareAlarm() {
+  try {
+    const existing = await platform.alarms.get('liaison-share-sync')
+    if (!existing) platform.alarms.create('liaison-share-sync', { periodInMinutes: 10 })
+  } catch (_) {}
+}
+platform.runtime.onStartup.addListener(() => { liaisonEnsureShareAlarm(); setTimeout(liaisonShareSync, 30000) })
+platform.runtime.onInstalled.addListener(() => { liaisonEnsureShareAlarm() })
+platform.alarms.onAlarm.addListener((a) => {
+  if (a.name === 'liaison-share-sync') liaisonShareSync()
+})
 
 // ---------------------------------------------------------------------------
 // 版本更新检查（gist 广播源）

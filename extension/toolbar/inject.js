@@ -82,6 +82,25 @@ window.addEventListener('message', async (event) => {
       })
       if (!resp.ok) throw new Error(resp.error || 'kv set failed')
       result = true
+    } else if (d.action === 'share') {
+      // 团队共享库：全屏面板查当前作者 / 手动触发同步。白名单放行，不做通用透传。
+      const msg = d.payload && d.payload.msg
+      // 「仅看我的」开关：存 chrome.storage.local（扩展全局，跨网站记住），内容脚本直接读写
+      if (msg === 'getOnlyMine') {
+        const o = await platform.storage.local.get('liaisonInspOnlyMine')
+        result = { ok: true, value: o && o.liaisonInspOnlyMine === true }
+      } else if (msg === 'setOnlyMine') {
+        await platform.storage.local.set({ liaisonInspOnlyMine: d.payload.value === true })
+        result = { ok: true }
+      } else {
+      if (msg !== 'liaisonGetAuthor' && msg !== 'liaisonShareSyncNow') throw new Error('share action not allowed')
+      result = await new Promise((resolve) => {
+        platform.runtime.sendMessage({ action: msg }, (r) => {
+          if (platform.runtime.lastError) resolve({ ok: false, error: platform.runtime.lastError.message })
+          else resolve(r || { ok: false, error: 'no response' })
+        })
+      })
+      }
     } else if (d.action === 'screenshot') {
       const resp = await new Promise((resolve) => {
         platform.runtime.sendMessage({ action: 'liaisonInspCaptureVisibleTab' }, (r) => {
@@ -247,6 +266,10 @@ platform.runtime.onMessage.addListener(request => {
 try {
   platform.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
+    if (changes && changes.liaisonInspOnlyMine) {
+      // 其它标签页切换了「仅看我的」：转发进 page world 同步
+      window.postMessage({ _liaisonOnlyMineChanged: true, value: changes.liaisonInspOnlyMine.newValue === true }, '*')
+    }
     if (!changes || !changes.liaisonInspLibVersion) return
     window.postMessage({ _liaisonInspLibChanged: true }, '*')
   })
