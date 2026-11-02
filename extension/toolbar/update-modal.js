@@ -285,7 +285,10 @@
     // 不需要知道 ~/.miaoxiang 存在，也不用记命令——这是自动更新之外的唯一自救入口。
     const go = overlay.querySelector('[data-update]')
     const result = overlay.querySelector('.result')
+    let updated = false
     if (go) go.addEventListener('click', () => {
+      // 更新成功后按钮变「完成」，再点就是关弹窗，不重复触发更新
+      if (updated) return close()
       go.disabled = true
       go.textContent = '更新中…'
       result.className = 'result'
@@ -335,6 +338,8 @@
           if (platformRef.runtime.lastError) return fail('更新失败：' + platformRef.runtime.lastError.message)
           if (r && !r.ok && r.bridgeDown) return failBridge()
           if (!r || !r.ok) return fail('更新失败：' + ((r && r.error) || '未知原因') + '。可联系分发者')
+          updated = true
+          go.disabled = false
           go.textContent = '完成'
           result.className = 'result ok'
           // 扩展会自我重载（见 background 的 liaisonSelfUpdate），当前页面里的
